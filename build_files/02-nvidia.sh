@@ -6,11 +6,31 @@ fi
 
 set -xeuo pipefail
 
+AKMODS_PATH="/usr/share/akmods"
+
 # Install pre-built nvidia-open drivers from ublue-os akmods
 # These RPMs are copied from ghcr.io/ublue-os/akmods-nvidia-open in the Containerfile
 
-dnf5 install -y /usr/share/akmods/rpms/ublue-os/ublue-os-nvidia*.rpm
-dnf5 install -y /usr/share/akmods/rpms/kmods/kmod-nvidia*.rpm
+source "${AKMODS_PATH}/rpms/kmods/nvidia-vars"
+
+CURRENT_KERNEL="$(rpm -q --queryformat '%{VERSION}-%{RELEASE}.%{ARCH}' kernel-core)"
+
+echo "Current kernel: ${CURRENT_KERNEL}"
+echo "NVIDIA kmod built for kernel: ${KERNEL_VERSION}"
+
+if [[ "${CURRENT_KERNEL}" != "${KERNEL_VERSION}" ]]; then
+    echo "Kernel version mismatch detected, installing matching kernel..."
+
+    dnf5 install -y --setopt=tsflags=noscripts \
+        "${AKMODS_PATH}/kernel-rpms/kernel-"*.rpm \
+        "${AKMODS_PATH}/kernel-rpms/kernel-core-"*.rpm \
+        "${AKMODS_PATH}/kernel-rpms/kernel-modules-"*.rpm
+fi
+
+dnf5 install -y "${AKMODS_PATH}/rpms/ublue-os/ublue-os-nvidia-addons-"*.rpm
+
+dnf5 install -y --setopt=tsflags=noscripts \
+    "${AKMODS_PATH}/rpms/kmods/kmod-nvidia-${KERNEL_VERSION}-${NVIDIA_AKMOD_VERSION}.${DIST_ARCH}.rpm"
 
 dnf5 install -y \
     nvidia-gpu-firmware \
