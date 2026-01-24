@@ -1,7 +1,7 @@
+ARG BASE_IMAGE="ghcr.io/ublue-os/bazzite:stable"
+
 FROM scratch AS ctx
 COPY build_files /build
-
-ARG BASE_IMAGE="ghcr.io/ublue-os/bazzite:stable"
 
 FROM ${BASE_IMAGE}
 
