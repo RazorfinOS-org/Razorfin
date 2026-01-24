@@ -1,6 +1,7 @@
 export image_name := env("IMAGE_NAME", "razorfin") # output image name, usually same as repo name, change as needed
 export default_tag := env("DEFAULT_TAG", "latest")
 export bib_image := env("BIB_IMAGE", "quay.io/centos-bootc/bootc-image-builder:latest")
+export default_base_image := env("BASE_IMAGE", "ghcr.io/ublue-os/bazzite:stable")
 
 alias build-vm := build-qcow2
 alias rebuild-vm := rebuild-qcow2
@@ -73,27 +74,74 @@ sudoif command *args:
 # Arguments:
 #   $target_image - The tag you want to apply to the image (default: $image_name).
 #   $tag - The tag for the image (default: $default_tag).
+#   $base_image - The base image to use (default: $default_base_image).
 #
 # The script constructs the version string using the tag and the current date.
 # If the git working directory is clean, it also includes the short SHA of the current HEAD.
 #
-# just build $target_image $tag
+# just build $target_image $tag $base_image
 #
 # Example usage:
-#   just build aurora lts
+#   just build razorfin latest ghcr.io/ublue-os/bazzite:stable
 #
-# This will build an image 'aurora:lts' with DX and GDX enabled.
+# This will build an image 'razorfin:latest' based on bazzite.
 #
 
 # Build the image using the specified parameters
-build $target_image=image_name $tag=default_tag:
+build $target_image=image_name $tag=default_tag $base_image=default_base_image:
     #!/usr/bin/env bash
 
     BUILD_ARGS=()
+    BUILD_ARGS+=("--build-arg" "BASE_IMAGE=${base_image}")
     if [[ -z "$(git status -s)" ]]; then
         BUILD_ARGS+=("--build-arg" "SHA_HEAD_SHORT=$(git rev-parse --short HEAD)")
     fi
 
+    podman build \
+        "${BUILD_ARGS[@]}" \
+        --pull=newer \
+        --tag "${target_image}:${tag}" \
+        .
+
+# Build DX variant (developer tools)
+[group('Build Variants')]
+build-dx $target_image=("localhost/" + image_name + "-dx") $tag=default_tag:
+    #!/usr/bin/env bash
+    BUILD_ARGS=()
+    BUILD_ARGS+=("--build-arg" "BASE_IMAGE=ghcr.io/ublue-os/bazzite-dx:stable")
+    if [[ -z "$(git status -s)" ]]; then
+        BUILD_ARGS+=("--build-arg" "SHA_HEAD_SHORT=$(git rev-parse --short HEAD)")
+    fi
+    podman build \
+        "${BUILD_ARGS[@]}" \
+        --pull=newer \
+        --tag "${target_image}:${tag}" \
+        .
+
+# Build NVIDIA Open variant
+[group('Build Variants')]
+build-nvidia-open $target_image=("localhost/" + image_name + "-nvidia-open") $tag=default_tag:
+    #!/usr/bin/env bash
+    BUILD_ARGS=()
+    BUILD_ARGS+=("--build-arg" "BASE_IMAGE=ghcr.io/ublue-os/bazzite-nvidia-open:stable")
+    if [[ -z "$(git status -s)" ]]; then
+        BUILD_ARGS+=("--build-arg" "SHA_HEAD_SHORT=$(git rev-parse --short HEAD)")
+    fi
+    podman build \
+        "${BUILD_ARGS[@]}" \
+        --pull=newer \
+        --tag "${target_image}:${tag}" \
+        .
+
+# Build DX + NVIDIA Open variant
+[group('Build Variants')]
+build-dx-nvidia-open $target_image=("localhost/" + image_name + "-dx-nvidia-open") $tag=default_tag:
+    #!/usr/bin/env bash
+    BUILD_ARGS=()
+    BUILD_ARGS+=("--build-arg" "BASE_IMAGE=ghcr.io/ublue-os/bazzite-dx-nvidia:stable")
+    if [[ -z "$(git status -s)" ]]; then
+        BUILD_ARGS+=("--build-arg" "SHA_HEAD_SHORT=$(git rev-parse --short HEAD)")
+    fi
     podman build \
         "${BUILD_ARGS[@]}" \
         --pull=newer \
@@ -198,50 +246,51 @@ _build-bib $target_image $tag $type $config: (_rootful_load_image target_image t
 _rebuild-bib $target_image $tag $type $config: (build target_image tag) && (_build-bib target_image tag type config)
 
 # Build a QCOW2 virtual machine image
-[group('Build Virtal Machine Image')]
+[group('Build Virtual Machine Image')]
 build-qcow2 $target_image=("localhost/" + image_name) $tag=default_tag: && (_build-bib target_image tag "qcow2" "disk_config/disk.toml")
 
 # Build a RAW virtual machine image
-[group('Build Virtal Machine Image')]
+[group('Build Virtual Machine Image')]
 build-raw $target_image=("localhost/" + image_name) $tag=default_tag: && (_build-bib target_image tag "raw" "disk_config/disk.toml")
 
 # Build an ISO virtual machine image
-[group('Build Virtal Machine Image')]
+[group('Build Virtual Machine Image')]
 build-iso $target_image=("localhost/" + image_name) $tag=default_tag: && (_build-bib target_image tag "iso" "disk_config/iso.toml")
 
-# Build NVIDIA variant
-[group('Build NVIDIA Variant')]
-build-nvidia $target_image=("localhost/" + image_name + "-nvidia") $tag=default_tag:
-    #!/usr/bin/env bash
-    BUILD_ARGS=()
-    BUILD_ARGS+=("--build-arg" "BUILD_FLAVOR=nvidia")
-    if [[ -z "$(git status -s)" ]]; then
-        BUILD_ARGS+=("--build-arg" "SHA_HEAD_SHORT=$(git rev-parse --short HEAD)")
-    fi
-    podman build \
-        "${BUILD_ARGS[@]}" \
-        --pull=newer \
-        --tag "${target_image}:${tag}" \
-        .
+# Build a QCOW2 image for DX variant
+[group('Build Variants')]
+build-qcow2-dx $target_image=("localhost/" + image_name + "-dx") $tag=default_tag: build-dx && (_build-bib target_image tag "qcow2" "disk_config/disk.toml")
 
-# Build a QCOW2 virtual machine image (NVIDIA variant)
-[group('Build NVIDIA Variant')]
-build-qcow2-nvidia $target_image=("localhost/" + image_name + "-nvidia") $tag=default_tag: build-nvidia && (_build-bib target_image tag "qcow2" "disk_config/disk.toml")
+# Build an ISO image for DX variant
+[group('Build Variants')]
+build-iso-dx $target_image=("localhost/" + image_name + "-dx") $tag=default_tag: build-dx && (_build-bib target_image tag "iso" "disk_config/iso-dx.toml")
 
-# Build an ISO virtual machine image (NVIDIA variant)
-[group('Build NVIDIA Variant')]
-build-iso-nvidia $target_image=("localhost/" + image_name + "-nvidia") $tag=default_tag: build-nvidia && (_build-bib target_image tag "iso" "disk_config/iso-nvidia.toml")
+# Build a QCOW2 image for NVIDIA Open variant
+[group('Build Variants')]
+build-qcow2-nvidia-open $target_image=("localhost/" + image_name + "-nvidia-open") $tag=default_tag: build-nvidia-open && (_build-bib target_image tag "qcow2" "disk_config/disk.toml")
+
+# Build an ISO image for NVIDIA Open variant
+[group('Build Variants')]
+build-iso-nvidia-open $target_image=("localhost/" + image_name + "-nvidia-open") $tag=default_tag: build-nvidia-open && (_build-bib target_image tag "iso" "disk_config/iso-nvidia-open.toml")
+
+# Build a QCOW2 image for DX + NVIDIA Open variant
+[group('Build Variants')]
+build-qcow2-dx-nvidia-open $target_image=("localhost/" + image_name + "-dx-nvidia-open") $tag=default_tag: build-dx-nvidia-open && (_build-bib target_image tag "qcow2" "disk_config/disk.toml")
+
+# Build an ISO image for DX + NVIDIA Open variant
+[group('Build Variants')]
+build-iso-dx-nvidia-open $target_image=("localhost/" + image_name + "-dx-nvidia-open") $tag=default_tag: build-dx-nvidia-open && (_build-bib target_image tag "iso" "disk_config/iso-dx-nvidia-open.toml")
 
 # Rebuild a QCOW2 virtual machine image
-[group('Build Virtal Machine Image')]
+[group('Build Virtual Machine Image')]
 rebuild-qcow2 $target_image=("localhost/" + image_name) $tag=default_tag: && (_rebuild-bib target_image tag "qcow2" "disk_config/disk.toml")
 
 # Rebuild a RAW virtual machine image
-[group('Build Virtal Machine Image')]
+[group('Build Virtual Machine Image')]
 rebuild-raw $target_image=("localhost/" + image_name) $tag=default_tag: && (_rebuild-bib target_image tag "raw" "disk_config/disk.toml")
 
 # Rebuild an ISO virtual machine image
-[group('Build Virtal Machine Image')]
+[group('Build Virtual Machine Image')]
 rebuild-iso $target_image=("localhost/" + image_name) $tag=default_tag: && (_rebuild-bib target_image tag "iso" "disk_config/iso.toml")
 
 # Run a virtual machine with the specified image type and configuration
@@ -287,27 +336,43 @@ _run-vm $target_image $tag $type $config:
     podman run "${run_args[@]}"
 
 # Run a virtual machine from a QCOW2 image
-[group('Run Virtal Machine')]
+[group('Run Virtual Machine')]
 run-vm-qcow2 $target_image=("localhost/" + image_name) $tag=default_tag: && (_run-vm target_image tag "qcow2" "disk_config/disk.toml")
 
 # Run a virtual machine from a RAW image
-[group('Run Virtal Machine')]
+[group('Run Virtual Machine')]
 run-vm-raw $target_image=("localhost/" + image_name) $tag=default_tag: && (_run-vm target_image tag "raw" "disk_config/disk.toml")
 
 # Run a virtual machine from an ISO
-[group('Run Virtal Machine')]
+[group('Run Virtual Machine')]
 run-vm-iso $target_image=("localhost/" + image_name) $tag=default_tag: && (_run-vm target_image tag "iso" "disk_config/iso.toml")
 
-# Run a virtual machine from an NVIDIA QCOW2 image
-[group('Run NVIDIA Variant')]
-run-vm-qcow2-nvidia $target_image=("localhost/" + image_name + "-nvidia") $tag=default_tag: && (_run-vm target_image tag "qcow2" "disk_config/disk.toml")
+# Run a virtual machine from a DX QCOW2 image
+[group('Run Variants')]
+run-vm-qcow2-dx $target_image=("localhost/" + image_name + "-dx") $tag=default_tag: && (_run-vm target_image tag "qcow2" "disk_config/disk.toml")
 
-# Run a virtual machine from an NVIDIA ISO
-[group('Run NVIDIA Variant')]
-run-vm-iso-nvidia $target_image=("localhost/" + image_name + "-nvidia") $tag=default_tag: && (_run-vm target_image tag "iso" "disk_config/iso-nvidia.toml")
+# Run a virtual machine from a DX ISO
+[group('Run Variants')]
+run-vm-iso-dx $target_image=("localhost/" + image_name + "-dx") $tag=default_tag: && (_run-vm target_image tag "iso" "disk_config/iso-dx.toml")
+
+# Run a virtual machine from a NVIDIA Open QCOW2 image
+[group('Run Variants')]
+run-vm-qcow2-nvidia-open $target_image=("localhost/" + image_name + "-nvidia-open") $tag=default_tag: && (_run-vm target_image tag "qcow2" "disk_config/disk.toml")
+
+# Run a virtual machine from a NVIDIA Open ISO
+[group('Run Variants')]
+run-vm-iso-nvidia-open $target_image=("localhost/" + image_name + "-nvidia-open") $tag=default_tag: && (_run-vm target_image tag "iso" "disk_config/iso-nvidia-open.toml")
+
+# Run a virtual machine from a DX + NVIDIA Open QCOW2 image
+[group('Run Variants')]
+run-vm-qcow2-dx-nvidia-open $target_image=("localhost/" + image_name + "-dx-nvidia-open") $tag=default_tag: && (_run-vm target_image tag "qcow2" "disk_config/disk.toml")
+
+# Run a virtual machine from a DX + NVIDIA Open ISO
+[group('Run Variants')]
+run-vm-iso-dx-nvidia-open $target_image=("localhost/" + image_name + "-dx-nvidia-open") $tag=default_tag: && (_run-vm target_image tag "iso" "disk_config/iso-dx-nvidia-open.toml")
 
 # Run a virtual machine using systemd-vmspawn
-[group('Run Virtal Machine')]
+[group('Run Virtual Machine')]
 spawn-vm rebuild="0" type="qcow2" ram="6G":
     #!/usr/bin/env bash
 
