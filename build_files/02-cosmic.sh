@@ -11,8 +11,13 @@ dnf5 install -y --allowerasing --skip-broken \
     gnome-keyring-pam \
     xdg-user-dirs
 
-# Create system users (cosmic-greeter, etc.) - doesn't run automatically in container builds
-systemd-sysusers
+# Create system users - systemd-sysusers doesn't reliably work in container builds
+systemd-sysusers || true
+
+# Explicitly create cosmic-greeter user if it doesn't exist (needed for greetd)
+if ! id -u cosmic-greeter &>/dev/null; then
+    useradd -r -M -d /var/empty -s /sbin/nologin -c "COSMIC Greeter" cosmic-greeter
+fi
 
 systemctl set-default graphical.target
 
