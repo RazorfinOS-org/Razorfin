@@ -11,6 +11,7 @@ dnf5 install -y --allowerasing --skip-broken @cosmic-desktop-environment
 # Create system users (cosmic-greeter, etc.) - doesn't run automatically in container builds
 systemd-sysusers
 
-systemctl enable cosmic-greeter.service
+# Enable greetd (the display manager that runs cosmic-greeter)
+systemctl enable greetd.service
 
 systemctl set-default graphical.target
