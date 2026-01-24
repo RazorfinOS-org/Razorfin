@@ -2,7 +2,11 @@
 
 set -xeuo pipefail
 
-dnf5 install -y @cosmic-desktop-environment
+# Disable any existing display managers
+systemctl disable sddm.service || true
+systemctl disable gdm.service || true
+
+dnf5 install -y --allowerasing --skip-broken @cosmic-desktop-environment
 
 # Create system users (cosmic-greeter, etc.) - doesn't run automatically in container builds
 systemd-sysusers

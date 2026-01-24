@@ -11,9 +11,6 @@ dnf5 install -y \
     wget
 
 systemctl enable podman.socket
-systemctl enable brew-setup.service
-systemctl enable brew-upgrade.timer
-systemctl enable brew-update.timer
 
 # Create ublue-motd files (referenced by shared scripts but not included)
 mkdir -p /usr/share/ublue-os/motd
