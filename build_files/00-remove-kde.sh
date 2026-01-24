@@ -17,5 +17,5 @@ dnf5 remove -y \
     kate \
     || true
 
-# Clean up orphaned dependencies
-dnf5 autoremove -y || true
+# Skip autoremove - it may remove dependencies needed by COSMIC
+# dnf5 autoremove -y || true
