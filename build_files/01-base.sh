@@ -2,7 +2,11 @@
 
 set -xeuo pipefail
 
-# Customize os-release for Razorfin branding
+# =============================================================================
+# OS-RELEASE BRANDING
+# =============================================================================
+# Customize os-release for Razorfin branding (shown in GRUB via PRETTY_NAME)
+
 OSTREE_VERSION=$(grep "^OSTREE_VERSION=" /usr/lib/os-release | cut -d"'" -f2)
 
 sed -i 's/^NAME=.*/NAME="Razorfin"/' /usr/lib/os-release
@@ -13,6 +17,17 @@ sed -i 's|^HOME_URL=.*|HOME_URL="https://github.com/RazorfinOS-org/Razorfin"|' /
 sed -i 's|^DOCUMENTATION_URL=.*|DOCUMENTATION_URL="https://github.com/RazorfinOS-org/Razorfin"|' /usr/lib/os-release
 sed -i 's|^SUPPORT_URL=.*|SUPPORT_URL="https://github.com/RazorfinOS-org/Razorfin/issues"|' /usr/lib/os-release
 sed -i 's|^BUG_REPORT_URL=.*|BUG_REPORT_URL="https://github.com/RazorfinOS-org/Razorfin/issues"|' /usr/lib/os-release
+
+# =============================================================================
+# PLYMOUTH BOOT SPLASH BRANDING
+# =============================================================================
+# Install Razorfin Plymouth theme for boot splash screen
+
+# Copy theme files to Plymouth themes directory
+cp -r /ctx/build/plymouth/razorfin /usr/share/plymouth/themes/
+
+# Set Razorfin as the default Plymouth theme
+plymouth-set-default-theme razorfin
 
 dnf5 install -y \
     zsh \

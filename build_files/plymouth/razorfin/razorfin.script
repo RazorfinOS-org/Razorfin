@@ -1,0 +1,13 @@
+// Razorfin Plymouth Theme
+// Simple centered logo on dark background
+
+// Set background color to match logo background (#0d1117)
+Window.SetBackgroundTopColor(0.05, 0.07, 0.09);
+Window.SetBackgroundBottomColor(0.05, 0.07, 0.09);
+
+// Load and center the logo
+logo = Image("logo.png");
+logo_sprite = Sprite(logo);
+logo_sprite.SetX(Window.GetWidth() / 2 - logo.GetWidth() / 2);
+logo_sprite.SetY(Window.GetHeight() / 2 - logo.GetHeight() / 2);
+logo_sprite.SetOpacity(1.0);
