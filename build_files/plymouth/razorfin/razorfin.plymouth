@@ -17,20 +17,24 @@ WatermarkHorizontalAlignment=.5
 WatermarkVerticalAlignment=.96
 Transition=none
 TransitionDuration=0.0
-BackgroundStartColor=0x0d1117
-BackgroundEndColor=0x0d1117
+BackgroundStartColor=0x000000
+BackgroundEndColor=0x000000
 ProgressBarBackgroundColor=0x606060
 ProgressBarForegroundColor=0xffffff
+DialogClearsFirmwareBackground=true
 MessageBelowAnimation=true
 
 [boot-up]
 UseEndAnimation=false
+UseFirmwareBackground=true
 
 [shutdown]
 UseEndAnimation=false
+UseFirmwareBackground=true
 
 [reboot]
 UseEndAnimation=false
+UseFirmwareBackground=true
 
 [updates]
 SuppressMessages=true
