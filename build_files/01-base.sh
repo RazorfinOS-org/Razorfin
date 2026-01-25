@@ -3,8 +3,6 @@
 set -xeuo pipefail
 
 # Customize os-release for Razorfin branding
-# Extract version from existing os-release
-VERSION=$(grep "^VERSION=" /usr/lib/os-release | cut -d'"' -f2 | cut -d' ' -f1)
 OSTREE_VERSION=$(grep "^OSTREE_VERSION=" /usr/lib/os-release | cut -d"'" -f2)
 
 sed -i 's/^NAME=.*/NAME="Razorfin"/' /usr/lib/os-release
