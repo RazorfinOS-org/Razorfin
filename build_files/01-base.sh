@@ -8,15 +8,24 @@ set -xeuo pipefail
 # Customize os-release for Razorfin branding (shown in GRUB via PRETTY_NAME)
 
 OSTREE_VERSION=$(grep "^OSTREE_VERSION=" /usr/lib/os-release | cut -d"'" -f2)
+VERSION_ID=$(grep "^VERSION_ID=" /usr/lib/os-release | cut -d'=' -f2)
 
 sed -i 's/^NAME=.*/NAME="Razorfin"/' /usr/lib/os-release
-sed -i "s/^PRETTY_NAME=.*/PRETTY_NAME=\"Razorfin (${OSTREE_VERSION})\"/" /usr/lib/os-release
+sed -i "s/^PRETTY_NAME=.*/PRETTY_NAME=\"Razorfin (Version: ${OSTREE_VERSION})\"/" /usr/lib/os-release
 sed -i "s/^BOOTLOADER_NAME=.*/BOOTLOADER_NAME=\"Razorfin (${OSTREE_VERSION})\"/" /usr/lib/os-release
 sed -i 's/^DEFAULT_HOSTNAME=.*/DEFAULT_HOSTNAME="razorfin"/' /usr/lib/os-release
 sed -i 's|^HOME_URL=.*|HOME_URL="https://github.com/RazorfinOS-org/Razorfin"|' /usr/lib/os-release
 sed -i 's|^DOCUMENTATION_URL=.*|DOCUMENTATION_URL="https://github.com/RazorfinOS-org/Razorfin"|' /usr/lib/os-release
 sed -i 's|^SUPPORT_URL=.*|SUPPORT_URL="https://github.com/RazorfinOS-org/Razorfin/issues"|' /usr/lib/os-release
 sed -i 's|^BUG_REPORT_URL=.*|BUG_REPORT_URL="https://github.com/RazorfinOS-org/Razorfin/issues"|' /usr/lib/os-release
+
+# Additional branding fixes for distro command output
+sed -i 's/^ID=.*/ID=razorfin/' /usr/lib/os-release
+sed -i "s/^VERSION=.*/VERSION=\"${VERSION_ID} (Cosmonaut)\"/" /usr/lib/os-release
+sed -i 's/^VERSION_CODENAME=.*/VERSION_CODENAME="Cosmonaut"/' /usr/lib/os-release
+sed -i 's/^LOGO=.*/LOGO=razorfin/' /usr/lib/os-release
+sed -i 's/^VARIANT=.*/VARIANT="COSMIC"/' /usr/lib/os-release
+sed -i 's/^VARIANT_ID=bazzite/VARIANT_ID=razorfin/' /usr/lib/os-release
 
 # =============================================================================
 # PACKAGES
