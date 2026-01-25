@@ -77,10 +77,31 @@ dnf5 remove -y \
 # Remove Bazzite-specific KDE packages
 dnf5 remove -y \
     steamdeck-kde-presets-desktop \
+    steamdeck-kde-presets \
     krunner-bazaar \
     rom-properties-kf6 \
     kcm-fcitx5 \
     xwaylandvideobridge \
+    || true
+
+# Remove IBus input method framework (auto-starts and shows KDE-specific notifications)
+# Users needing non-English input can reinstall ibus manually
+dnf5 remove -y \
+    ibus-xinit \
+    ibus-setup \
+    ibus-anthy \
+    ibus-anthy-python \
+    ibus-hangul \
+    ibus-libpinyin \
+    ibus-pinyin \
+    ibus-m17n \
+    ibus-typing-booster \
+    ibus-chewing \
+    ibus-table \
+    ibus-table-chinese \
+    ibus-table-chinese-cangjie \
+    ibus-table-chinese-quick \
+    ibus-qt \
     || true
 
 # Remove KDE I/O and framework packages (not needed for COSMIC)
