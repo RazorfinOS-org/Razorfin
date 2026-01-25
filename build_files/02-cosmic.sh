@@ -11,16 +11,21 @@ dnf5 install -y --allowerasing --skip-broken \
     gnome-keyring-pam \
     xdg-user-dirs
 
-# Create system users - systemd-sysusers doesn't reliably work in container builds
-systemd-sysusers || true
-
-# Explicitly create cosmic-greeter user if it doesn't exist (needed for greetd)
-if ! id -u cosmic-greeter &>/dev/null; then
-    useradd -r -M -d /var/empty -s /sbin/nologin -c "COSMIC Greeter" cosmic-greeter
+# Create cosmic-greeter user in /usr/lib/passwd (ostree requires users here, not /etc/passwd)
+# useradd writes to /etc/passwd which doesn't persist in ostree images
+if ! grep -q "^cosmic-greeter:" /usr/lib/passwd; then
+    echo "cosmic-greeter:x:969:969:COSMIC Greeter:/var/lib/cosmic-greeter:/sbin/nologin" >> /usr/lib/passwd
+fi
+if ! grep -q "^cosmic-greeter:" /usr/lib/group; then
+    echo "cosmic-greeter:x:969:" >> /usr/lib/group
 fi
 
-# Ensure cosmic-greeter is in the video group (required for display access)
-usermod -aG video cosmic-greeter || true
+# Add cosmic-greeter to video group for display access
+if grep -q "^video:" /usr/lib/group; then
+    sed -i 's/^\(video:.*\)$/\1,cosmic-greeter/' /usr/lib/group
+    # Clean up double commas or trailing commas if video group was empty
+    sed -i 's/:,/:/g; s/,,/,/g' /usr/lib/group
+fi
 
 systemctl set-default graphical.target
 
