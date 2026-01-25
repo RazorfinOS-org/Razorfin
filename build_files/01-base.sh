@@ -79,6 +79,9 @@ cp /ctx/build/razorfin/motd.md /usr/share/ublue-os/motd/razorfin.md
 # Remove Bazzite-specific MOTD if it exists
 rm -f /usr/share/ublue-os/motd/bazzite.md
 
+# Fix ublue-motd script to use razorfin.md instead of bazzite.md
+sed -i 's|/usr/share/ublue-os/motd/bazzite.md|/usr/share/ublue-os/motd/razorfin.md|g' /usr/libexec/ublue-motd
+
 # Update image-info.json with Razorfin branding
 if [[ -f /usr/share/ublue-os/image-info.json ]]; then
     # Update image name while preserving other fields
