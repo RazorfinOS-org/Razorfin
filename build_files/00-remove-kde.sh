@@ -124,5 +124,14 @@ dnf5 remove -y \
 rm -f /usr/share/wayland-sessions/plasma-steamos-wayland-oneshot.desktop
 rm -f /usr/share/xsessions/plasma-steamos-oneshot.desktop
 
+# Remove handheld-specific packages (not needed for desktop)
+# hhd = Handheld Daemon (crashes on desktop, only for Steam Deck/ROG Ally/etc)
+# steamdeck-dsp = Steam Deck audio DSP
+dnf5 remove -y \
+    hhd \
+    hhd-ui \
+    steamdeck-dsp \
+    || true
+
 # Skip autoremove - it may remove dependencies needed by COSMIC
 # dnf5 autoremove -y || true
