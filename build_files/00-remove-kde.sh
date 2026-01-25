@@ -98,5 +98,9 @@ dnf5 remove -y \
     kdegraphics-thumbnailers \
     || true
 
+# Remove leftover Plasma session files
+rm -f /usr/share/wayland-sessions/plasma-steamos-wayland-oneshot.desktop
+rm -f /usr/share/xsessions/plasma-steamos-oneshot.desktop
+
 # Skip autoremove - it may remove dependencies needed by COSMIC
 # dnf5 autoremove -y || true
