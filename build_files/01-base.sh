@@ -28,16 +28,19 @@ dnf5 install -y \
     htop \
     git \
     curl \
-    wget \
-    plymouth-plugin-script  # Required for Razorfin Plymouth theme
+    wget
 
 # =============================================================================
 # PLYMOUTH BOOT SPLASH BRANDING
 # =============================================================================
-# Install Razorfin Plymouth theme for boot splash screen
+# Install Razorfin Plymouth theme (uses two-step module with spinner animation)
+# The theme reuses spinner's animation files but with custom watermark and colors
 
-# Copy theme files to Plymouth themes directory
+# Copy theme config to Plymouth themes directory
 cp -r /ctx/build/plymouth/razorfin /usr/share/plymouth/themes/
+
+# Replace spinner's watermark with Razorfin logo (theme references spinner's ImageDir)
+cp /ctx/build/plymouth/razorfin/watermark.png /usr/share/plymouth/themes/spinner/watermark.png
 
 # Set Razorfin as the default Plymouth theme
 plymouth-set-default-theme razorfin
