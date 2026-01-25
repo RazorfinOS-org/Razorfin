@@ -84,8 +84,9 @@ sed -i 's|/usr/share/ublue-os/motd/bazzite.md|/usr/share/ublue-os/motd/razorfin.
 
 # Update image-info.json with Razorfin branding
 if [[ -f /usr/share/ublue-os/image-info.json ]]; then
-    # Update image name while preserving other fields
-    jq '.["image-name"] = "Razorfin" | .["image-vendor"] = "RazorfinOS"' \
+    # Replace "bazzite" with "razorfin" in image-name to preserve variant info
+    # e.g., "bazzite-dx-nvidia" becomes "razorfin-dx-nvidia"
+    jq '.["image-name"] = (.["image-name"] | gsub("bazzite"; "razorfin")) | .["image-vendor"] = "RazorfinOS"' \
         /usr/share/ublue-os/image-info.json > /tmp/image-info.json
     mv /tmp/image-info.json /usr/share/ublue-os/image-info.json
 fi

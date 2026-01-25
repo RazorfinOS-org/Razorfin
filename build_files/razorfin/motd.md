@@ -10,5 +10,5 @@
 | `brew help` | Manage command line packages |
 
 %TIP%
-- **** [Report an issue](https://github.com/RazorfinOS-org/Razorfin/issues)
+- **󰊤** [Report an issue](https://github.com/RazorfinOS-org/Razorfin/issues)
 - **󰈙** [Documentation](https://github.com/RazorfinOS-org/Razorfin)
