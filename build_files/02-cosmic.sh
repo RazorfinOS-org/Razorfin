@@ -19,6 +19,9 @@ if ! id -u cosmic-greeter &>/dev/null; then
     useradd -r -M -d /var/empty -s /sbin/nologin -c "COSMIC Greeter" cosmic-greeter
 fi
 
+# Ensure cosmic-greeter is in the video group (required for display access)
+usermod -aG video cosmic-greeter || true
+
 systemctl set-default graphical.target
 
 # cosmic-greeter.service is auto-enabled by the package - no manual enable needed
