@@ -90,5 +90,7 @@ if [[ -f /usr/share/ublue-os/image-info.json ]]; then
     mv /tmp/image-info.json /usr/share/ublue-os/image-info.json
 fi
 
-# Remove Bazzite-specific MOTD tips
+# Replace MOTD tips with Razorfin-specific tips
+rm -f /usr/share/ublue-os/motd/tips/10-ublue.md
 rm -f /usr/share/ublue-os/motd/tips/20-bazzite.md
+cp /ctx/build/razorfin/tips.md /usr/share/ublue-os/motd/tips/10-razorfin.md
