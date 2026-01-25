@@ -19,6 +19,19 @@ sed -i 's|^SUPPORT_URL=.*|SUPPORT_URL="https://github.com/RazorfinOS-org/Razorfi
 sed -i 's|^BUG_REPORT_URL=.*|BUG_REPORT_URL="https://github.com/RazorfinOS-org/Razorfin/issues"|' /usr/lib/os-release
 
 # =============================================================================
+# PACKAGES
+# =============================================================================
+
+dnf5 install -y \
+    zsh \
+    tmux \
+    htop \
+    git \
+    curl \
+    wget \
+    plymouth-plugin-script  # Required for Razorfin Plymouth theme
+
+# =============================================================================
 # PLYMOUTH BOOT SPLASH BRANDING
 # =============================================================================
 # Install Razorfin Plymouth theme for boot splash screen
@@ -28,14 +41,6 @@ cp -r /ctx/build/plymouth/razorfin /usr/share/plymouth/themes/
 
 # Set Razorfin as the default Plymouth theme
 plymouth-set-default-theme razorfin
-
-dnf5 install -y \
-    zsh \
-    tmux \
-    htop \
-    git \
-    curl \
-    wget
 
 systemctl enable podman.socket
 
