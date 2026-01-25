@@ -20,12 +20,18 @@ if ! grep -q "^cosmic-greeter:" /usr/lib/group; then
     echo "cosmic-greeter:x:969:" >> /usr/lib/group
 fi
 
-# Add cosmic-greeter to video group for display access
-if grep -q "^video:" /usr/lib/group; then
-    sed -i 's/^\(video:.*\)$/\1,cosmic-greeter/' /usr/lib/group
-    # Clean up double commas or trailing commas if video group was empty
-    sed -i 's/:,/:/g; s/,,/,/g' /usr/lib/group
-fi
+# Add cosmic-greeter to video and render groups for display/DRM access
+for group in video render; do
+    if grep -q "^${group}:" /usr/lib/group; then
+        sed -i "s/^\(${group}:.*\)$/\1,cosmic-greeter/" /usr/lib/group
+    fi
+done
+# Clean up double commas or trailing commas
+sed -i 's/:,/:/g; s/,,/,/g' /usr/lib/group
+
+# Create cosmic-greeter home directory with proper ownership
+mkdir -p /var/lib/cosmic-greeter/.local/state/cosmic-comp
+chown -R 969:969 /var/lib/cosmic-greeter
 
 systemctl set-default graphical.target
 
