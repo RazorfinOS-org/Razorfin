@@ -80,6 +80,7 @@ dnf5 remove -y \
     krunner-bazaar \
     rom-properties-kf6 \
     kcm-fcitx5 \
+    xwaylandvideobridge \
     || true
 
 # Remove KDE I/O and framework packages (not needed for COSMIC)
