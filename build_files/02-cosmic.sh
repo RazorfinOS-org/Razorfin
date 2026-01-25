@@ -13,11 +13,12 @@ dnf5 install -y --allowerasing --skip-broken \
 
 # Create cosmic-greeter user in /usr/lib/passwd (ostree requires users here, not /etc/passwd)
 # useradd writes to /etc/passwd which doesn't persist in ostree images
+# Using UID 961 to avoid conflict with sddm (UID 969) from base Bazzite image
 if ! grep -q "^cosmic-greeter:" /usr/lib/passwd; then
-    echo "cosmic-greeter:x:969:969:COSMIC Greeter:/var/lib/cosmic-greeter:/sbin/nologin" >> /usr/lib/passwd
+    echo "cosmic-greeter:x:961:961:COSMIC Greeter:/var/lib/cosmic-greeter:/sbin/nologin" >> /usr/lib/passwd
 fi
 if ! grep -q "^cosmic-greeter:" /usr/lib/group; then
-    echo "cosmic-greeter:x:969:" >> /usr/lib/group
+    echo "cosmic-greeter:x:961:" >> /usr/lib/group
 fi
 
 # Add cosmic-greeter to video and render groups for display/DRM access
@@ -31,7 +32,7 @@ sed -i 's/:,/:/g; s/,,/,/g' /usr/lib/group
 
 # Create cosmic-greeter home directory with proper ownership
 mkdir -p /var/lib/cosmic-greeter/.local/state/cosmic-comp
-chown -R 969:969 /var/lib/cosmic-greeter
+chown -R 961:961 /var/lib/cosmic-greeter
 
 systemctl set-default graphical.target
 
