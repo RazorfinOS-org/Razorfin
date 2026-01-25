@@ -8,7 +8,7 @@ VERSION=$(grep "^VERSION=" /usr/lib/os-release | cut -d'"' -f2 | cut -d' ' -f1)
 OSTREE_VERSION=$(grep "^OSTREE_VERSION=" /usr/lib/os-release | cut -d"'" -f2)
 
 sed -i 's/^NAME=.*/NAME="Razorfin"/' /usr/lib/os-release
-sed -i 's/^PRETTY_NAME=.*/PRETTY_NAME="Razorfin"/' /usr/lib/os-release
+sed -i "s/^PRETTY_NAME=.*/PRETTY_NAME=\"Razorfin (${OSTREE_VERSION})\"/" /usr/lib/os-release
 sed -i "s/^BOOTLOADER_NAME=.*/BOOTLOADER_NAME=\"Razorfin (${OSTREE_VERSION})\"/" /usr/lib/os-release
 sed -i 's/^DEFAULT_HOSTNAME=.*/DEFAULT_HOSTNAME="razorfin"/' /usr/lib/os-release
 sed -i 's|^HOME_URL=.*|HOME_URL="https://github.com/RazorfinOS-org/Razorfin"|' /usr/lib/os-release
