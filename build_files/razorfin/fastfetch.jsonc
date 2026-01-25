@@ -33,7 +33,7 @@
       "text": "/usr/libexec/razorfin-fetch-image"
     },
     { "type": "os", "key": " 󱢴", "format": "{pretty-name}" },
-    { "type": "kernel", "key": " ", "format": "{1} {2}" },
+    { "type": "kernel", "key": " 󰌽", "format": "{1} {2}" },
     { "type": "uptime", "key": " 󰅐" },
     "break",
     { "type": "host", "key": " 󰟀" },
