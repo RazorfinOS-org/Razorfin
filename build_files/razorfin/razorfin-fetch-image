@@ -1,0 +1,19 @@
+#!/usr/bin/bash
+# Display Razorfin image name and branch
+
+IMAGE_NAME="Razorfin"
+IMAGE_BRANCH="latest"
+
+# Try to get branch from image-info.json if it exists
+if [[ -f /usr/share/ublue-os/image-info.json ]]; then
+    IMAGE_BRANCH=$(jq -r '.["image-branch"] // "latest"' < /usr/share/ublue-os/image-info.json 2>/dev/null || echo "latest")
+fi
+
+echo -n "${IMAGE_NAME}:${IMAGE_BRANCH}"
+
+# Check if booted from signed image
+if [[ "$(rpm-ostree status --json --booted 2>/dev/null)" =~ "ostree-image-signed" ]]; then
+    echo -n -e " "
+else
+    echo -n -e " \033[6;31m"
+fi

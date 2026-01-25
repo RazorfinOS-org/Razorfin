@@ -47,16 +47,36 @@ plymouth-set-default-theme razorfin
 
 systemctl enable podman.socket
 
-# Create ublue-motd files (referenced by shared scripts but not included)
-mkdir -p /usr/share/ublue-os/motd
-tee /usr/share/ublue-os/motd/env.sh <<'EOF'
-#!/usr/bin/env sh
-export IMAGE_NAME="${IMAGE_NAME:-Razorfin}"
-export IMAGE_TAG="${IMAGE_TAG:-latest}"
-EOF
+# =============================================================================
+# RAZORFIN BRANDING (MOTD & FASTFETCH)
+# =============================================================================
+# Override Bazzite's MOTD and fastfetch with Razorfin branding
 
-tee /usr/share/ublue-os/motd/template.md <<'EOF'
-# Welcome to ${IMAGE_NAME}
+# Install Razorfin branding files for fastfetch
+mkdir -p /usr/share/ublue-os/razorfin
+cp /ctx/build/razorfin/logo.txt /usr/share/ublue-os/razorfin/
+cp /ctx/build/razorfin/fastfetch.jsonc /usr/share/ublue-os/razorfin/
 
-A custom Universal Blue image with COSMIC desktop.
-EOF
+# Install razorfin-fetch-image helper script
+cp /ctx/build/razorfin/razorfin-fetch-image /usr/libexec/
+chmod +x /usr/libexec/razorfin-fetch-image
+
+# Override Bazzite's fastfetch aliases with Razorfin config
+# Using 'zzz-' prefix ensures this runs after bazzite-neofetch.sh
+cp /ctx/build/razorfin/razorfin-neofetch.sh /etc/profile.d/zzz-razorfin-neofetch.sh
+
+# Replace Bazzite MOTD with Razorfin MOTD
+cp /ctx/build/razorfin/motd.md /usr/share/ublue-os/motd/razorfin.md
+# Remove Bazzite-specific MOTD if it exists
+rm -f /usr/share/ublue-os/motd/bazzite.md
+
+# Update image-info.json with Razorfin branding
+if [[ -f /usr/share/ublue-os/image-info.json ]]; then
+    # Update image name while preserving other fields
+    jq '.["image-name"] = "Razorfin" | .["image-vendor"] = "RazorfinOS"' \
+        /usr/share/ublue-os/image-info.json > /tmp/image-info.json
+    mv /tmp/image-info.json /usr/share/ublue-os/image-info.json
+fi
+
+# Remove Bazzite-specific MOTD tips
+rm -f /usr/share/ublue-os/motd/tips/20-bazzite.md
