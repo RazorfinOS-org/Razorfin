@@ -37,7 +37,8 @@ dnf5 install -y \
     htop \
     git \
     curl \
-    wget
+    wget \
+    buildstream
 
 # =============================================================================
 # PLYMOUTH BOOT SPLASH BRANDING
