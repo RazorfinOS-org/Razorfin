@@ -38,7 +38,9 @@ dnf5 install -y \
     git \
     curl \
     wget \
-    buildstream
+    buildstream \
+    python3-dulwich \
+    python3-tomlkit
 
 # =============================================================================
 # PLYMOUTH BOOT SPLASH BRANDING
