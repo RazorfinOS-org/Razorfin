@@ -22,6 +22,11 @@ SECUREBOOT_KEY="/usr/share/ublue-os/sb_pubkey.der"
 ###############################################################################
 # Install Anaconda and dependencies
 ###############################################################################
+# Clear versionlocks inherited from the base image (Bazzite locks
+# NetworkManager among others) to avoid dependency conflicts when
+# pulling in anaconda-core -> NetworkManager-team -> NetworkManager.
+dnf -qy versionlock clear 2>/dev/null || true
+
 dnf install -qy --allowerasing \
     anaconda-live \
     libblockdev-btrfs \
