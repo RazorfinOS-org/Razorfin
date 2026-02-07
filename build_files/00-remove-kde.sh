@@ -133,5 +133,5 @@ dnf5 remove -y \
     steamdeck-dsp \
     || true
 
-# Skip autoremove - it may remove dependencies needed by COSMIC
-# dnf5 autoremove -y || true
+# Autoremove runs in 03-cleanup-kde-frameworks.sh (after COSMIC install)
+# so that COSMIC's deps are marked explicit and protected.

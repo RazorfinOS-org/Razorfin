@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-
 set -xeuo pipefail
 
 # =============================================================================
@@ -89,8 +88,6 @@ sed -i 's|/usr/share/ublue-os/motd/bazzite.md|/usr/share/ublue-os/motd/razorfin.
 
 # Update image-info.json with Razorfin branding
 if [[ -f /usr/share/ublue-os/image-info.json ]]; then
-    # Replace "bazzite" with "razorfin" in image-name to preserve variant info
-    # e.g., "bazzite-dx-nvidia" becomes "razorfin-dx-nvidia"
     jq '.["image-name"] = (.["image-name"] | gsub("bazzite"; "razorfin")) | .["image-vendor"] = "RazorfinOS"' \
         /usr/share/ublue-os/image-info.json > /tmp/image-info.json
     mv /tmp/image-info.json /usr/share/ublue-os/image-info.json

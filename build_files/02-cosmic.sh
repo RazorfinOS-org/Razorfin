@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-
 set -xeuo pipefail
 
 # Disable any existing display managers

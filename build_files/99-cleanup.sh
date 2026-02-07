@@ -1,6 +1,12 @@
 #!/usr/bin/env bash
-
 set -xeuo pipefail
+
+# =============================================================================
+# FINAL CLEANUP — runs AFTER KDE Frameworks cleanup (03-cleanup-kde-frameworks.sh)
+# =============================================================================
+# This is the last step in the build process, so it's safe to clean up any
+# remaining build artifacts, regenerate initramfs, and verify the final image.
+
 
 KERNEL_VERSION="$(rpm -q --queryformat='%{VERSION}-%{RELEASE}.%{ARCH}' kernel-core)"
 if [[ -n "${KERNEL_VERSION}" ]]; then
