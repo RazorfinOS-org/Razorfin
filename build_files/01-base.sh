@@ -26,6 +26,8 @@ sed -i 's/^VERSION_CODENAME=.*/VERSION_CODENAME="Cosmonaut"/' /usr/lib/os-releas
 sed -i 's/^LOGO=.*/LOGO=razorfin/' /usr/lib/os-release
 sed -i 's/^VARIANT=.*/VARIANT="COSMIC"/' /usr/lib/os-release
 sed -i 's/^VARIANT_ID=bazzite/VARIANT_ID=razorfin/' /usr/lib/os-release
+sed -i 's|^CPE_NAME=.*|CPE_NAME=cpe:/o:razorfinos-org:razorfin:'"${VERSION_ID}"'|' /usr/lib/os-release
+sed -i 's/^IMAGE_ID=bazzite/IMAGE_ID=razorfin/' /usr/lib/os-release
 
 # =============================================================================
 # PACKAGES

@@ -2,6 +2,7 @@ export image_name := env("IMAGE_NAME", "razorfin") # output image name, usually 
 export default_tag := env("DEFAULT_TAG", "latest")
 export bib_image := env("BIB_IMAGE", "quay.io/centos-bootc/bootc-image-builder:latest")
 export default_base_image := env("BASE_IMAGE", "ghcr.io/ublue-os/bazzite:stable")
+export titanoboa_image := env("TITANOBOA_IMAGE", "ghcr.io/ublue-os/titanoboa:latest")
 
 alias build-vm := build-qcow2
 alias rebuild-vm := rebuild-qcow2
@@ -202,7 +203,7 @@ _rootful_load_image $target_image=image_name $tag=default_tag:
 # Parameters:
 #   target_image: The name of the image to build (ex. localhost/fedora)
 #   tag: The tag of the image to build (ex. latest)
-#   type: The type of image to build (ex. qcow2, raw, iso)
+#   type: The type of image to build (ex. qcow2, raw)
 #   config: The configuration file to use for the build (default: disk_config/disk.toml)
 
 # Example: just _rebuild-bib localhost/fedora latest qcow2 disk_config/disk.toml
@@ -239,11 +240,38 @@ _build-bib $target_image $tag $type $config: (_rootful_load_image target_image t
 # Parameters:
 #   target_image: The name of the image to build (ex. localhost/fedora)
 #   tag: The tag of the image to build (ex. latest)
-#   type: The type of image to build (ex. qcow2, raw, iso)
+#   type: The type of image to build (ex. qcow2, raw)
 #   config: The configuration file to use for the build (deafult: disk_config/disk.toml)
 
 # Example: just _rebuild-bib localhost/fedora latest qcow2 disk_config/disk.toml
 _rebuild-bib $target_image $tag $type $config: (build target_image tag) && (_build-bib target_image tag type config)
+
+# Build an ISO using Titanoboa
+# Parameters:
+#   image_ref: The container image reference (ex. ghcr.io/razorfinos-org/razorfin:latest)
+#   iso_name: The output ISO filename (ex. razorfin-live-amd64.iso)
+[private]
+_build-iso-titanoboa $image_ref $iso_name:
+    #!/usr/bin/env bash
+    set -euo pipefail
+
+    echo "Building ISO for ${image_ref} using Titanoboa..."
+
+    # Clone titanoboa if not already present
+    if [[ ! -d ".titanoboa" ]]; then
+        git clone --depth 1 https://github.com/ublue-os/titanoboa.git .titanoboa
+    fi
+
+    sudo \
+        HOOK_post_rootfs="$(pwd)/iso_files/configure_iso.sh" \
+        $(which just) -f .titanoboa/Justfile build \
+        "${image_ref}" 1 none squashfs "" "" 1
+
+    sudo chown "$(id -u):$(id -g)" .titanoboa/output.iso
+    mkdir -p output
+    mv .titanoboa/output.iso "output/${iso_name}"
+
+    echo "ISO built: output/${iso_name}"
 
 # Build a QCOW2 virtual machine image
 [group('Build Virtual Machine Image')]
@@ -253,33 +281,17 @@ build-qcow2 $target_image=("localhost/" + image_name) $tag=default_tag: && (_bui
 [group('Build Virtual Machine Image')]
 build-raw $target_image=("localhost/" + image_name) $tag=default_tag: && (_build-bib target_image tag "raw" "disk_config/disk.toml")
 
-# Build an ISO virtual machine image
-[group('Build Virtual Machine Image')]
-build-iso $target_image=("localhost/" + image_name) $tag=default_tag: && (_build-bib target_image tag "iso" "disk_config/iso.toml")
+# Build an ISO image using Titanoboa
+[group('Build ISO')]
+build-iso $image_ref=("ghcr.io/razorfinos-org/" + image_name + ":latest"): (_build-iso-titanoboa image_ref (image_name + "-live-amd64.iso"))
 
-# Build a QCOW2 image for DX variant
-[group('Build Variants')]
-build-qcow2-dx $target_image=("localhost/" + image_name + "-dx") $tag=default_tag: build-dx && (_build-bib target_image tag "qcow2" "disk_config/disk.toml")
-
-# Build an ISO image for DX variant
-[group('Build Variants')]
-build-iso-dx $target_image=("localhost/" + image_name + "-dx") $tag=default_tag: build-dx && (_build-bib target_image tag "iso" "disk_config/iso-dx.toml")
+# Build an ISO image for NVIDIA Open variant using Titanoboa
+[group('Build ISO')]
+build-iso-nvidia-open $image_ref=("ghcr.io/razorfinos-org/" + image_name + "-nvidia-open:latest"): (_build-iso-titanoboa image_ref (image_name + "-nvidia-open-live-amd64.iso"))
 
 # Build a QCOW2 image for NVIDIA Open variant
 [group('Build Variants')]
 build-qcow2-nvidia-open $target_image=("localhost/" + image_name + "-nvidia-open") $tag=default_tag: build-nvidia-open && (_build-bib target_image tag "qcow2" "disk_config/disk.toml")
-
-# Build an ISO image for NVIDIA Open variant
-[group('Build Variants')]
-build-iso-nvidia-open $target_image=("localhost/" + image_name + "-nvidia-open") $tag=default_tag: build-nvidia-open && (_build-bib target_image tag "iso" "disk_config/iso-nvidia-open.toml")
-
-# Build a QCOW2 image for DX + NVIDIA Open variant
-[group('Build Variants')]
-build-qcow2-dx-nvidia-open $target_image=("localhost/" + image_name + "-dx-nvidia-open") $tag=default_tag: build-dx-nvidia-open && (_build-bib target_image tag "qcow2" "disk_config/disk.toml")
-
-# Build an ISO image for DX + NVIDIA Open variant
-[group('Build Variants')]
-build-iso-dx-nvidia-open $target_image=("localhost/" + image_name + "-dx-nvidia-open") $tag=default_tag: build-dx-nvidia-open && (_build-bib target_image tag "iso" "disk_config/iso-dx-nvidia-open.toml")
 
 # Rebuild a QCOW2 virtual machine image
 [group('Build Virtual Machine Image')]
@@ -288,10 +300,6 @@ rebuild-qcow2 $target_image=("localhost/" + image_name) $tag=default_tag: && (_r
 # Rebuild a RAW virtual machine image
 [group('Build Virtual Machine Image')]
 rebuild-raw $target_image=("localhost/" + image_name) $tag=default_tag: && (_rebuild-bib target_image tag "raw" "disk_config/disk.toml")
-
-# Rebuild an ISO virtual machine image
-[group('Build Virtual Machine Image')]
-rebuild-iso $target_image=("localhost/" + image_name) $tag=default_tag: && (_rebuild-bib target_image tag "iso" "disk_config/iso.toml")
 
 # Run a virtual machine with the specified image type and configuration
 _run-vm $target_image $tag $type $config:
@@ -345,31 +353,49 @@ run-vm-raw $target_image=("localhost/" + image_name) $tag=default_tag: && (_run-
 
 # Run a virtual machine from an ISO
 [group('Run Virtual Machine')]
-run-vm-iso $target_image=("localhost/" + image_name) $tag=default_tag: && (_run-vm target_image tag "iso" "disk_config/iso.toml")
+run-vm-iso $iso_path="":
+    #!/usr/bin/bash
+    set -eoux pipefail
 
-# Run a virtual machine from a DX QCOW2 image
-[group('Run Variants')]
-run-vm-qcow2-dx $target_image=("localhost/" + image_name + "-dx") $tag=default_tag: && (_run-vm target_image tag "qcow2" "disk_config/disk.toml")
+    # Find the ISO file
+    if [[ -n "${iso_path}" ]]; then
+        image_file="${iso_path}"
+    else
+        image_file=$(find output/ -name "*.iso" -type f | head -1)
+    fi
 
-# Run a virtual machine from a DX ISO
-[group('Run Variants')]
-run-vm-iso-dx $target_image=("localhost/" + image_name + "-dx") $tag=default_tag: && (_run-vm target_image tag "iso" "disk_config/iso-dx.toml")
+    if [[ -z "${image_file}" || ! -f "${image_file}" ]]; then
+        echo "No ISO found. Run 'just build-iso' first."
+        exit 1
+    fi
+
+    # Determine an available port to use
+    port=8006
+    while grep -q :${port} <<< $(ss -tunalp); do
+        port=$(( port + 1 ))
+    done
+    echo "Using Port: ${port}"
+    echo "Connect to http://localhost:${port}"
+
+    run_args=()
+    run_args+=(--rm --privileged)
+    run_args+=(--pull=newer)
+    run_args+=(--publish "127.0.0.1:${port}:8006")
+    run_args+=(--env "CPU_CORES=4")
+    run_args+=(--env "RAM_SIZE=8G")
+    run_args+=(--env "DISK_SIZE=64G")
+    run_args+=(--env "TPM=Y")
+    run_args+=(--env "GPU=Y")
+    run_args+=(--device=/dev/kvm)
+    run_args+=(--volume "${PWD}/${image_file}":"/boot.iso")
+    run_args+=(docker.io/qemux/qemu)
+
+    (sleep 30 && xdg-open http://localhost:"$port") &
+    podman run "${run_args[@]}"
 
 # Run a virtual machine from a NVIDIA Open QCOW2 image
 [group('Run Variants')]
 run-vm-qcow2-nvidia-open $target_image=("localhost/" + image_name + "-nvidia-open") $tag=default_tag: && (_run-vm target_image tag "qcow2" "disk_config/disk.toml")
-
-# Run a virtual machine from a NVIDIA Open ISO
-[group('Run Variants')]
-run-vm-iso-nvidia-open $target_image=("localhost/" + image_name + "-nvidia-open") $tag=default_tag: && (_run-vm target_image tag "iso" "disk_config/iso-nvidia-open.toml")
-
-# Run a virtual machine from a DX + NVIDIA Open QCOW2 image
-[group('Run Variants')]
-run-vm-qcow2-dx-nvidia-open $target_image=("localhost/" + image_name + "-dx-nvidia-open") $tag=default_tag: && (_run-vm target_image tag "qcow2" "disk_config/disk.toml")
-
-# Run a virtual machine from a DX + NVIDIA Open ISO
-[group('Run Variants')]
-run-vm-iso-dx-nvidia-open $target_image=("localhost/" + image_name + "-dx-nvidia-open") $tag=default_tag: && (_run-vm target_image tag "iso" "disk_config/iso-dx-nvidia-open.toml")
 
 # Run a virtual machine using systemd-vmspawn
 [group('Run Virtual Machine')]
