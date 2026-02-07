@@ -7,11 +7,12 @@ set -xeuo pipefail
 # At this point, COSMIC's @cosmic-desktop-environment group marks its deps as
 # explicitly installed, so autoremove won't touch them.
 
-# Remove all KDE Framework 5 libraries
+# Remove all KDE Framework 5 libraries (COSMIC has no kf5 deps)
 dnf5 remove -y kf5-* || true
 
-# Remove all KDE Framework 6 libraries
-dnf5 remove -y kf6-* || true
+# NOTE: kf6-* glob is NOT safe — COSMIC packages depend on some kf6 libraries,
+# so removing all kf6-* cascades into removing the entire COSMIC desktop.
+# Orphaned kf6 packages are handled by autoremove below.
 
 # Remove Breeze icon/cursor/GTK themes
 dnf5 remove -y breeze-icon-theme breeze-cursor-theme breeze-gtk-* || true
