@@ -1,0 +1,2 @@
+# Bootc Image Builder (BIB) configuration for QCOW2/RAW disk images.
+# Used by local dev recipes: just build-qcow2, just build-raw
