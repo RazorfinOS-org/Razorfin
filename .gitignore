@@ -2,3 +2,7 @@ cosign.key
 _build_*
 output
 _build-*/**
+test-vm.sh
+razorfin-test.qcow2
+vm-serial.log
+vm-monitor.sock

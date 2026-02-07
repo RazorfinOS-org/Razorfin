@@ -36,6 +36,13 @@ dnf install -qy --allowerasing \
 mkdir -p /var/lib/rpm-state
 
 ###############################################################################
+# Remove packages not needed in the live environment
+# https://github.com/ublue-os/bazzite/blob/main/installer/titanoboa_hook_postrootfs.sh#L648-L652
+###############################################################################
+rm -vf /etc/skel/.config/autostart/steam*.desktop
+dnf -yq remove steam lutris bazaar || true
+
+###############################################################################
 # Disable unnecessary services in the live environment
 ###############################################################################
 services_to_disable=(
