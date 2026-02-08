@@ -22,9 +22,9 @@ on:
           - stable
 
 env:
-  IMAGE_DESC: "My Customized Universal Blue Image"
-  IMAGE_KEYWORDS: "bootc,ublue,universal-blue"
-  IMAGE_LOGO_URL: "https://avatars.githubusercontent.com/u/120078124?s=200&v=4"
+  IMAGE_DESC: "A COSMIC desktop experience powered by Bazzite"
+  IMAGE_KEYWORDS: "bootc,cosmic,bazzite,razorfin,ublue,universal-blue"
+  IMAGE_LOGO_URL: "https://raw.githubusercontent.com/RazorfinOS-org/Razorfin/main/assets/logo.png"
   IMAGE_NAME: "${{ github.event.repository.name }}"
   IMAGE_REGISTRY: "ghcr.io/${{ github.repository_owner }}"
   DEFAULT_TAG: "testing"
