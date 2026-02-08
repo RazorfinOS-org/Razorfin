@@ -138,6 +138,9 @@ curl -Lo "${SECUREBOOT_KEY}" "${sbkey}"
 ###############################################################################
 cat >> /usr/share/anaconda/interactive-defaults.ks <<KICKSTART_EOF
 
+# Deploy the container image from local containers-storage (embedded by Titanoboa)
+ostreecontainer --url=${imageref}:${imagetag} --transport=containers-storage --no-signature-verification
+
 # Razorfin post-install: bootc switch to the signed container image
 %post --erroronfail
 set -euo pipefail
