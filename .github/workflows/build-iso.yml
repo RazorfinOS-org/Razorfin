@@ -5,9 +5,6 @@ on:
   schedule:
     - cron: "0 0 1 * *" # 1st of each month
   workflow_dispatch:
-  workflow_run:
-    workflows: ["Build container image"]
-    types: [completed]
 
 env:
   IMAGE_REGISTRY: "ghcr.io/${{ github.repository_owner }}"
@@ -19,9 +16,6 @@ concurrency:
 jobs:
   build-iso:
     name: Build ISO (${{ matrix.image }})
-    if: >-
-      github.event_name != 'workflow_run' ||
-      github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-24.04
     permissions:
       contents: read
@@ -64,19 +58,7 @@ jobs:
           sha256sum "${DEST}" > "${DEST}.sha256"
           echo "iso-upload-dir=${ISO_UPLOAD_DIR}" >> "$GITHUB_OUTPUT"
 
-      - name: Upload ISO and checksum to artifacts
-        if: github.event.workflow_run.event == 'pull_request'
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
-        with:
-          name: ${{ matrix.image }}-live-amd64
-          path: ${{ steps.checksum.outputs.iso-upload-dir }}
-          if-no-files-found: error
-          retention-days: 3
-          compression-level: 0
-          overwrite: true
-
       - name: Upload ISO and checksum to R2
-        if: github.event.workflow_run.event != 'pull_request'
         shell: bash
         env:
           RCLONE_CONFIG_R2_TYPE: s3
