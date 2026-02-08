@@ -1,0 +1,127 @@
+---
+name: Promote container image
+
+on:
+  schedule:
+    - cron: '05 10 * * *'  # Daily at 10:05 UTC
+  workflow_dispatch:
+    inputs:
+      source_tag:
+        description: 'Source tag to promote from (e.g. testing, latest, stable.20260201)'
+        required: true
+        type: string
+      target_tag:
+        description: 'Target tag to promote to (e.g. latest, stable)'
+        required: true
+        type: string
+
+env:
+  IMAGE_NAME: "${{ github.event.repository.name }}"
+  IMAGE_REGISTRY: "ghcr.io/${{ github.repository_owner }}"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  promote:
+    name: Promote ${{ matrix.suffix || 'base' }}
+    runs-on: ubuntu-24.04
+
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+
+    strategy:
+      fail-fast: false
+      matrix:
+        suffix: ["", "-dx", "-nvidia-open", "-dx-nvidia-open"]
+
+    steps:
+      - name: Prepare environment
+        run: |
+          echo "IMAGE_REGISTRY=${IMAGE_REGISTRY,,}" >> "${GITHUB_ENV}"
+          echo "IMAGE_NAME=${IMAGE_NAME,,}" >> "${GITHUB_ENV}"
+
+      - name: Login to GitHub Container Registry
+        run: |
+          echo "${{ secrets.GITHUB_TOKEN }}" | skopeo login ghcr.io -u ${{ github.actor }} --password-stdin
+
+      - name: Install Cosign
+        uses: sigstore/cosign-installer@faadad0cce49287aee09b3a48701e75088a2c6ad # v4.0.0
+        with:
+          cosign-release: 'v2.6.1'
+
+      # Stable promotion runs BEFORE daily promotion on Tuesdays so that
+      # stable gets the week-old latest image, not the one just promoted from testing
+      - name: Promote latest to stable (Tuesday only)
+        if: github.event_name == 'schedule'
+        env:
+          COSIGN_PRIVATE_KEY: ${{ secrets.COSIGN_PRIVATE_KEY }}
+        run: |
+          DAY_OF_WEEK=$(date -u +%u)
+          if [[ "${DAY_OF_WEEK}" != "2" ]]; then
+            echo "Not Tuesday (day=${DAY_OF_WEEK}), skipping weekly stable promotion"
+            exit 0
+          fi
+
+          IMAGE="${IMAGE_REGISTRY}/${IMAGE_NAME}${{ matrix.suffix }}"
+          DATE_TAG=$(date +%Y%m%d)
+
+          if ! skopeo inspect "docker://${IMAGE}:latest" > /dev/null 2>&1; then
+            echo "Source tag latest not found for ${{ matrix.suffix || 'base' }}, skipping"
+            exit 0
+          fi
+
+          DIGEST=$(skopeo inspect --format '{{.Digest}}' "docker://${IMAGE}:latest")
+          echo "Promoting ${IMAGE}:latest → stable (${DIGEST})"
+
+          skopeo copy "docker://${IMAGE}:latest" "docker://${IMAGE}:stable"
+          skopeo copy "docker://${IMAGE}:latest" "docker://${IMAGE}:stable.${DATE_TAG}"
+
+          cosign sign -y --key env://COSIGN_PRIVATE_KEY "${IMAGE}@${DIGEST}"
+
+      - name: Promote testing to latest
+        if: github.event_name == 'schedule'
+        env:
+          COSIGN_PRIVATE_KEY: ${{ secrets.COSIGN_PRIVATE_KEY }}
+        run: |
+          IMAGE="${IMAGE_REGISTRY}/${IMAGE_NAME}${{ matrix.suffix }}"
+          DATE_TAG=$(date +%Y%m%d)
+
+          if ! skopeo inspect "docker://${IMAGE}:testing" > /dev/null 2>&1; then
+            echo "Source tag testing not found for ${{ matrix.suffix || 'base' }}, skipping"
+            exit 0
+          fi
+
+          DIGEST=$(skopeo inspect --format '{{.Digest}}' "docker://${IMAGE}:testing")
+          echo "Promoting ${IMAGE}:testing → latest (${DIGEST})"
+
+          skopeo copy "docker://${IMAGE}:testing" "docker://${IMAGE}:latest"
+          skopeo copy "docker://${IMAGE}:testing" "docker://${IMAGE}:latest.${DATE_TAG}"
+
+          cosign sign -y --key env://COSIGN_PRIVATE_KEY "${IMAGE}@${DIGEST}"
+
+      - name: Manual promotion
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          COSIGN_PRIVATE_KEY: ${{ secrets.COSIGN_PRIVATE_KEY }}
+        run: |
+          IMAGE="${IMAGE_REGISTRY}/${IMAGE_NAME}${{ matrix.suffix }}"
+          SOURCE="${{ inputs.source_tag }}"
+          TARGET="${{ inputs.target_tag }}"
+          DATE_TAG=$(date +%Y%m%d)
+
+          if ! skopeo inspect "docker://${IMAGE}:${SOURCE}" > /dev/null 2>&1; then
+            echo "Source tag ${SOURCE} not found for ${{ matrix.suffix || 'base' }}, skipping"
+            exit 0
+          fi
+
+          DIGEST=$(skopeo inspect --format '{{.Digest}}' "docker://${IMAGE}:${SOURCE}")
+          echo "Promoting ${IMAGE}:${SOURCE} → ${TARGET} (${DIGEST})"
+
+          skopeo copy "docker://${IMAGE}:${SOURCE}" "docker://${IMAGE}:${TARGET}"
+          skopeo copy "docker://${IMAGE}:${SOURCE}" "docker://${IMAGE}:${TARGET}.${DATE_TAG}"
+
+          cosign sign -y --key env://COSIGN_PRIVATE_KEY "${IMAGE}@${DIGEST}"

@@ -5,6 +5,16 @@ on:
   schedule:
     - cron: "0 0 1 * *" # 1st of each month
   workflow_dispatch:
+    inputs:
+      channel:
+        description: 'Channel to build ISO from'
+        required: false
+        default: 'stable'
+        type: choice
+        options:
+          - stable
+          - latest
+          - testing
 
 env:
   IMAGE_REGISTRY: "ghcr.io/${{ github.repository_owner }}"
@@ -26,9 +36,9 @@ jobs:
       matrix:
         include:
           - image: razorfin
-            image-ref: ghcr.io/razorfinos-org/razorfin:latest
+            image-ref: ghcr.io/razorfinos-org/razorfin:${{ inputs.channel || 'stable' }}
           - image: razorfin-nvidia-open
-            image-ref: ghcr.io/razorfinos-org/razorfin-nvidia-open:latest
+            image-ref: ghcr.io/razorfinos-org/razorfin-nvidia-open:${{ inputs.channel || 'stable' }}
 
     steps:
       - name: Maximize build space
