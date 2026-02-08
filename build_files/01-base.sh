@@ -6,8 +6,9 @@ set -xeuo pipefail
 # =============================================================================
 # Customize os-release for Razorfin branding (shown in GRUB via PRETTY_NAME)
 
-OSTREE_VERSION=$(grep "^OSTREE_VERSION=" /usr/lib/os-release | cut -d"'" -f2)
 VERSION_ID=$(grep "^VERSION_ID=" /usr/lib/os-release | cut -d'=' -f2)
+OSTREE_VERSION="${VERSION_ID}.$(TZ=America/New_York date +%Y%m%d).0"
+sed -i "s/^OSTREE_VERSION=.*/OSTREE_VERSION='${OSTREE_VERSION}'/" /usr/lib/os-release
 
 sed -i 's/^NAME=.*/NAME="Razorfin"/' /usr/lib/os-release
 sed -i "s/^PRETTY_NAME=.*/PRETTY_NAME=\"Razorfin (Version: ${OSTREE_VERSION})\"/" /usr/lib/os-release
