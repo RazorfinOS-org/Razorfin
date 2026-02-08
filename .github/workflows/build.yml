@@ -4,11 +4,15 @@ on:
   pull_request:
     branches:
       - main
+    paths:
+      - 'Containerfile'
+      - 'build_files/**'
   push:
     branches:
       - main
-    paths-ignore:
-      - '**/README.md'
+    paths:
+      - 'Containerfile'
+      - 'build_files/**'
   workflow_dispatch:
     inputs:
       target_channel:
