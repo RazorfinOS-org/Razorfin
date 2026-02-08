@@ -20,6 +20,11 @@ if [[ -n "${KERNEL_VERSION}" ]]; then
     chmod 0600 "/lib/modules/${KERNEL_VERSION}/initramfs.img"
 fi
 
+# Remove sb-key-notify autostart — the binary is installed without +x by ublue-setup-services,
+# and the profile.d script causes "permission denied" errors on the greeter console
+rm -f /etc/profile.d/sbkey-notify-autostart.sh
+rm -f /etc/skel/.config/autostart/sb-key-notify.desktop
+
 dnf5 clean all
 
 rm -rf /tmp/* /var/tmp/* || true
