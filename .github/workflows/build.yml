@@ -1,6 +1,8 @@
 ---
 name: Build container image
 on:
+  schedule:
+    - cron: '40 4 * * *'  # Daily at 04:40 UTC (before promote at 10:05)
   pull_request:
     branches:
       - main
@@ -38,8 +40,57 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  check:
+    name: Check for upstream changes
+    runs-on: ubuntu-24.04
+    outputs:
+      should_build: ${{ steps.check.outputs.should_build }}
+    steps:
+      - name: Prepare environment
+        run: |
+          echo "IMAGE_REGISTRY=${IMAGE_REGISTRY,,}" >> "${GITHUB_ENV}"
+          echo "IMAGE_NAME=${IMAGE_NAME,,}" >> "${GITHUB_ENV}"
+
+      - name: Check for upstream changes
+        id: check
+        run: |
+          # Always build for non-schedule events
+          if [[ "${{ github.event_name }}" != "schedule" ]]; then
+            echo "should_build=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # For scheduled runs, check if any base image has changed
+          declare -A BASES=(
+            [""]="ghcr.io/ublue-os/bazzite:stable"
+            ["-dx"]="ghcr.io/ublue-os/bazzite-dx:stable"
+            ["-nvidia-open"]="ghcr.io/ublue-os/bazzite-nvidia-open:stable"
+            ["-dx-nvidia-open"]="ghcr.io/ublue-os/bazzite-dx-nvidia:stable"
+          )
+
+          for suffix in "" "-dx" "-nvidia-open" "-dx-nvidia-open"; do
+            BASE="${BASES[$suffix]}"
+            OUR_IMAGE="${IMAGE_REGISTRY}/${IMAGE_NAME}${suffix}:testing"
+
+            BASE_DIGEST=$(skopeo inspect --format '{{.Digest}}' "docker://${BASE}" 2>/dev/null || echo "unknown")
+            CURRENT_BASE=$(skopeo inspect --format '{{index .Labels "org.opencontainers.image.base.digest"}}' "docker://${OUR_IMAGE}" 2>/dev/null || echo "")
+
+            echo "Checking ${suffix:-base}: upstream=${BASE_DIGEST:0:20}... current=${CURRENT_BASE:0:20}..."
+
+            if [[ "$BASE_DIGEST" != "$CURRENT_BASE" ]]; then
+              echo "Upstream change detected for ${suffix:-base}"
+              echo "should_build=true" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+          done
+
+          echo "No upstream changes detected"
+          echo "should_build=false" >> "$GITHUB_OUTPUT"
+
   build_push:
     name: Build and push image (${{ matrix.variant.name }})
+    needs: [check]
+    if: needs.check.outputs.should_build == 'true'
     runs-on: ubuntu-24.04
 
     strategy:
@@ -90,6 +141,12 @@ jobs:
         run: |
           echo "date=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_OUTPUT"
           echo "tag=$(date +%Y%m%d)" >> "$GITHUB_OUTPUT"
+
+      - name: Get base image digest
+        id: base
+        run: |
+          BASE_DIGEST=$(skopeo inspect --format '{{.Digest}}' "docker://${{ matrix.variant.base_image }}")
+          echo "digest=${BASE_DIGEST}" >> "$GITHUB_OUTPUT"
 
       - name: Generate image metadata
         id: metadata
@@ -153,6 +210,8 @@ jobs:
             io.artifacthub.package.logo-url=${{ env.IMAGE_LOGO_URL }}
             io.artifacthub.package.prerelease=false
             containers.bootc=1
+            org.opencontainers.image.base.digest=${{ steps.base.outputs.digest }}
+            org.opencontainers.image.base.name=${{ matrix.variant.base_image }}
 
       - name: Push to GHCR
         id: push

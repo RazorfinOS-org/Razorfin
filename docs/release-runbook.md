@@ -8,7 +8,7 @@ Razorfin uses a three-tier release channel system. Images are built once and pro
 
 | Channel | Update Frequency | Source | Target Audience |
 |---------|-----------------|--------|-----------------|
-| `testing` | Every push to `main` | Fresh build | Developers and testers |
+| `testing` | Every push to `main` + daily (04:40 UTC) if upstream changed | Fresh build | Developers and testers |
 | `latest` | Daily (10:05 UTC) | Previous day's `testing` | General users |
 | `stable` | Weekly (Tuesday 10:05 UTC) | Previous week's `latest` | Users requiring stability |
 
@@ -18,17 +18,16 @@ Each promotion also produces a date-stamped tag for rollback purposes (e.g., `te
 
 | Workflow | File | Purpose |
 |----------|------|---------|
-| **Build** | `build.yml` | Builds all four variants and pushes to the `testing` tag |
+| **Build** | `build.yml` | Checks for upstream Bazzite changes, builds all four variants, and pushes to the `testing` tag |
 | **Promote** | `promote.yml` | Handles daily and weekly promotion via `skopeo copy` with Cosign signing |
 | **Build ISOs** | `build-iso.yml` | Produces monthly ISO builds from the `stable` channel (configurable) |
 
 ## 4. Standard Promotion Flow
 
 ```
-push to main
-    |
-    v
-build.yml: build + push to :testing, :testing.YYYYMMDD, :YYYYMMDD
+push to main ──┐
+               ├──> build.yml: check → build + push to :testing, :testing.YYYYMMDD, :YYYYMMDD
+schedule ──────┘    (skips build if no upstream Bazzite change)
     |
     v  (daily 10:05 UTC, promote.yml)
 :testing  -->  :latest, :latest.YYYYMMDD
@@ -36,6 +35,8 @@ build.yml: build + push to :testing, :testing.YYYYMMDD, :YYYYMMDD
     v  (Tuesday 10:05 UTC, promote.yml)
 :latest  -->  :stable, :stable.YYYYMMDD
 ```
+
+The build workflow runs a **check** job before building. For scheduled runs (daily at 04:40 UTC), it compares the upstream Bazzite `:stable` digest against the `org.opencontainers.image.base.digest` label on the current `:testing` image. If all base images are unchanged, the build is skipped. Push, pull request, and manual dispatch events always build.
 
 On Tuesdays, the stable promotion runs **before** the daily promotion. This ensures that `stable` receives the week-old `latest` image rather than the image just promoted from `testing`.
 
@@ -174,7 +175,11 @@ This should not occur under normal operation because the stable promotion step i
 
 The emergency promote steps in `build.yml` execute after the standard push step. If the build itself failed, the promote steps are skipped because they depend on `steps.push.outputs`. Resolve the build failure first, then re-dispatch the workflow.
 
-### 11.4 Users Tracking a Legacy Channel Tag
+### 11.4 Scheduled Build Skipped: No Upstream Changes
+
+The build workflow's `check` job compares upstream Bazzite base image digests against the `org.opencontainers.image.base.digest` label stored on the current `:testing` images. If all digests match, the build is skipped. This is normal and avoids unnecessary rebuilds. To force a rebuild regardless, use **Actions > Build container image > Run workflow** (manual dispatch always builds).
+
+### 11.5 Users Tracking a Legacy Channel Tag
 
 Users who installed their system before the channel system was introduced may still be tracking `:latest` from the previous direct-push configuration. This does not require immediate action, as `:latest` continues to receive daily updates. To migrate a system to `stable`:
 

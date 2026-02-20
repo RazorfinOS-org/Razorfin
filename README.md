@@ -2,129 +2,123 @@
 
 [![build](https://github.com/RazorfinOS-org/Razorfin/actions/workflows/build.yml/badge.svg)](https://github.com/RazorfinOS-org/Razorfin/actions/workflows/build.yml)
 
-Razorfin is a custom Universal Blue image based on [Bazzite](https://bazzite.gg/) that replaces KDE Plasma with the [COSMIC](https://system76.com/cosmic) desktop environment.
+Razorfin is a custom [Universal Blue](https://universal-blue.org/) image based on [Bazzite](https://bazzite.gg/) that replaces KDE Plasma with the [COSMIC](https://system76.com/cosmic) desktop environment. It combines Bazzite's gaming optimizations and hardware support with System76's next-generation Rust-based desktop.
 
 ## Variants
 
-Razorfin is available in four variants:
-
 | Variant | Base Image | Description |
 |---------|------------|-------------|
-| `razorfin` | `bazzite:stable` | Bazzite + COSMIC desktop (AMD/Intel) |
-| `razorfin-dx` | `bazzite-dx:stable` | Bazzite DX + COSMIC desktop (includes developer tools) |
-| `razorfin-nvidia-open` | `bazzite-nvidia-open:stable` | Bazzite + COSMIC desktop + NVIDIA open drivers |
-| `razorfin-dx-nvidia-open` | `bazzite-dx-nvidia:stable` | Bazzite DX + COSMIC desktop + NVIDIA open drivers |
+| `razorfin` | `bazzite` | COSMIC desktop (AMD/Intel) |
+| `razorfin-dx` | `bazzite-dx` | COSMIC desktop + developer tools |
+| `razorfin-nvidia-open` | `bazzite-nvidia-open` | COSMIC desktop + NVIDIA open drivers |
+| `razorfin-dx-nvidia-open` | `bazzite-dx-nvidia` | COSMIC desktop + developer tools + NVIDIA open drivers |
+
+## Release Channels
+
+Images are built once and promoted between channels by re-tagging, so each channel ships the exact same image digest that was validated in the tier below it.
+
+| Channel | Cadence | Description |
+|---------|---------|-------------|
+| `testing` | Every push to `main` | Bleeding edge — latest changes, may have rough edges |
+| `latest` | Daily | Previous day's `testing` build, suitable for general use |
+| `stable` | Weekly (Tuesdays) | Previous week's `latest`, recommended for most users |
+
+Each promotion also creates a date-stamped tag (e.g., `stable.20260208`) that can be used for pinning or rollback.
 
 ## Installation
 
 ### Switch from an existing Fedora Atomic / Universal Blue system
 
 ```bash
-# Base variant (AMD/Intel)
-sudo bootc switch ghcr.io/razorfinos-org/razorfin:latest
+# Base variant (AMD/Intel) — stable channel (recommended)
+sudo bootc switch --enforce-container-sigpolicy ghcr.io/razorfinos-org/razorfin:stable
 
-# DX variant (with developer tools)
-sudo bootc switch ghcr.io/razorfinos-org/razorfin-dx:latest
+# DX variant
+sudo bootc switch --enforce-container-sigpolicy ghcr.io/razorfinos-org/razorfin-dx:stable
 
 # NVIDIA Open variant
-sudo bootc switch ghcr.io/razorfinos-org/razorfin-nvidia-open:latest
+sudo bootc switch --enforce-container-sigpolicy ghcr.io/razorfinos-org/razorfin-nvidia-open:stable
 
 # DX + NVIDIA Open variant
-sudo bootc switch ghcr.io/razorfinos-org/razorfin-dx-nvidia-open:latest
+sudo bootc switch --enforce-container-sigpolicy ghcr.io/razorfinos-org/razorfin-dx-nvidia-open:stable
 ```
+
+To track a different channel, replace `:stable` with `:latest` or `:testing`.
 
 ### Fresh Install via ISO
 
-Download the appropriate ISO for your hardware from the [Releases](https://github.com/razorfinos-org/Razorfin/releases) page and boot from it.
+Download the ISO for your hardware from the [Releases](https://github.com/razorfinos-org/Razorfin/releases) page and boot from it. ISOs are built monthly from the `stable` channel.
 
-## Features
+## Image Verification
 
-- **COSMIC Desktop**: System76's next-generation Rust-based desktop environment
-- **Bazzite Base**: All the gaming optimizations and hardware support from Bazzite
-- **Multiple Variants**: Choose between standard and developer (DX) editions, with or without NVIDIA support
+All images are signed with [Cosign](https://docs.sigstore.dev/cosign/overview/). The public key is included in this repository as [`cosign.pub`](cosign.pub).
+
+```bash
+cosign verify --key cosign.pub ghcr.io/razorfinos-org/razorfin:stable
+```
+
+## Changing Channels
+
+Switch your system to a different release channel at any time:
+
+```bash
+# Move to the stable channel
+sudo bootc switch --enforce-container-sigpolicy ghcr.io/razorfinos-org/razorfin:stable
+
+# Or pin to a specific date-stamped image
+sudo bootc switch --enforce-container-sigpolicy ghcr.io/razorfinos-org/razorfin:stable.20260208
+
+systemctl reboot
+```
+
+## Rollback
+
+If an update causes issues, you can roll back to the previous deployment without re-downloading anything:
+
+```bash
+sudo bootc rollback
+systemctl reboot
+```
+
+Or switch to a known-good date-stamped image:
+
+```bash
+sudo bootc switch --enforce-container-sigpolicy ghcr.io/razorfinos-org/razorfin:stable.20260201
+systemctl reboot
+```
 
 ## Building Locally
 
-Razorfin uses [Just](https://just.systems/) for build automation. Install it from your package manager or it's available by default on all Universal Blue images.
+Razorfin uses [Just](https://just.systems/) for build automation (available by default on all Universal Blue images).
 
-### Build Commands
-
-```bash
-# Build base variant
-just build
-
-# Build DX variant
-just build-dx
-
-# Build NVIDIA Open variant
-just build-nvidia-open
-
-# Build DX + NVIDIA Open variant
-just build-dx-nvidia-open
-```
-
-### Build ISOs
+### Container Images
 
 ```bash
-# Build ISO for base variant
-just build-iso
-
-# Build ISO for DX variant
-just build-iso-dx
-
-# Build ISO for NVIDIA Open variant
-just build-iso-nvidia-open
-
-# Build ISO for DX + NVIDIA Open variant
-just build-iso-dx-nvidia-open
+just build                  # Base variant
+just build-dx               # DX variant
+just build-nvidia-open      # NVIDIA Open variant
+just build-dx-nvidia-open   # DX + NVIDIA Open variant
 ```
 
-### Build QCOW2 VM Images
+### ISOs
 
 ```bash
-# Build QCOW2 for base variant
-just build-qcow2
-
-# Build QCOW2 for other variants
-just build-qcow2-dx
-just build-qcow2-nvidia-open
-just build-qcow2-dx-nvidia-open
+just build-iso              # Base variant
+just build-iso-nvidia-open  # NVIDIA Open variant
 ```
 
-### Run in a VM
+### QCOW2 VM Images
 
 ```bash
-# Run base variant in a VM
-just run-vm-qcow2
-
-# Run other variants
-just run-vm-qcow2-dx
-just run-vm-qcow2-nvidia-open
-just run-vm-qcow2-dx-nvidia-open
+just build-qcow2            # Build base QCOW2
+just run-vm-qcow2           # Build and run in a VM
 ```
 
-## Verification
+Run `just` with no arguments to see all available recipes.
 
-After building, verify the image:
+## Contributing
 
-```bash
-# Verify KDE is removed
-podman run --rm localhost/razorfin:latest rpm -qa | grep -i plasma
-# Should return nothing
-
-# Verify COSMIC is installed
-podman run --rm localhost/razorfin:latest rpm -qa | grep -i cosmic
-# Should show cosmic packages
-```
-
-## Environment Variables
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `IMAGE_NAME` | `razorfin` | Output image name |
-| `DEFAULT_TAG` | `latest` | Default tag for the image |
-| `BASE_IMAGE` | `ghcr.io/ublue-os/bazzite:stable` | Base image for builds |
-| `BIB_IMAGE` | `quay.io/centos-bootc/bootc-image-builder:latest` | Bootc Image Builder image |
+See the [release runbook](docs/release-runbook.md) for details on the CI/CD pipeline, emergency hotfix procedures, and rollback operations.
 
 ## Community
 
