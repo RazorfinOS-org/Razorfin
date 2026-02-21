@@ -61,15 +61,17 @@ jobs:
           fi
 
           # For scheduled runs, check if any base image has changed
-          declare -A BASES=(
-            [""]="ghcr.io/ublue-os/bazzite:stable"
-            ["-dx"]="ghcr.io/ublue-os/bazzite-dx:stable"
-            ["-nvidia-open"]="ghcr.io/ublue-os/bazzite-nvidia-open:stable"
-            ["-dx-nvidia-open"]="ghcr.io/ublue-os/bazzite-dx-nvidia:stable"
+          SUFFIXES=("" "-dx" "-nvidia-open" "-dx-nvidia-open")
+          BASE_IMAGES=(
+            "ghcr.io/ublue-os/bazzite:stable"
+            "ghcr.io/ublue-os/bazzite-dx:stable"
+            "ghcr.io/ublue-os/bazzite-nvidia-open:stable"
+            "ghcr.io/ublue-os/bazzite-dx-nvidia:stable"
           )
 
-          for suffix in "" "-dx" "-nvidia-open" "-dx-nvidia-open"; do
-            BASE="${BASES[$suffix]}"
+          for i in "${!SUFFIXES[@]}"; do
+            suffix="${SUFFIXES[$i]}"
+            BASE="${BASE_IMAGES[$i]}"
             OUR_IMAGE="${IMAGE_REGISTRY}/${IMAGE_NAME}${suffix}:testing"
 
             BASE_DIGEST=$(skopeo inspect --format '{{.Digest}}' "docker://${BASE}" 2>/dev/null || echo "unknown")
