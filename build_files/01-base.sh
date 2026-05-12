@@ -98,3 +98,20 @@ fi
 rm -f /usr/share/ublue-os/motd/tips/10-ublue.md
 rm -f /usr/share/ublue-os/motd/tips/20-bazzite.md
 cp /ctx/build/razorfin/tips.md /usr/share/ublue-os/motd/tips/10-razorfin.md
+
+# =============================================================================
+# RECHUNKER GROUP-FIX SAFETY NET
+# =============================================================================
+# We use ublue-os/legacy-rechunk, which corrupts /etc/gshadow when users
+# rebase to/from these images (nss-altfiles interaction; see service header
+# for the full list of upstream issues). Ship Aurora's first-boot oneshot
+# verbatim so users don't end up with a black screen.
+#
+# Bazzite solved this differently (build-time passwd/group migration in
+# build_files/finalize, PR #4216). We'll adopt that pattern when we
+# migrate off legacy-rechunk; until then, the runtime repair is the
+# defensive option.
+install -D -m 0755 /ctx/build/razorfin/rechunker-group-fix /usr/bin/rechunker-group-fix
+install -D -m 0644 /ctx/build/razorfin/rechunker-group-fix.service \
+    /usr/lib/systemd/system/rechunker-group-fix.service
+systemctl enable rechunker-group-fix.service
