@@ -60,14 +60,37 @@ jobs:
             exit 0
           fi
 
-          # For scheduled runs, check if any base image has changed
+          # For scheduled runs, check if any base image has changed.
+          # Both dx and non-dx variants now share these two F44 bases; we
+          # iterate the suffix list so the per-variant comparison still works.
           SUFFIXES=("" "-dx" "-nvidia-open" "-dx-nvidia-open")
           BASE_IMAGES=(
             "ghcr.io/ublue-os/bazzite:stable"
-            "ghcr.io/ublue-os/bazzite-dx:stable"
+            "ghcr.io/ublue-os/bazzite:stable"
             "ghcr.io/ublue-os/bazzite-nvidia-open:stable"
-            "ghcr.io/ublue-os/bazzite-dx-nvidia:stable"
+            "ghcr.io/ublue-os/bazzite-nvidia-open:stable"
           )
+
+          # Stale-base guard: fail if any base image hasn't been published
+          # in the last MAX_BASE_AGE_DAYS days. Would have caught the
+          # bazzite-dx-nvidia F43 freeze automatically. Unique-ify the
+          # list first so we only inspect each base once.
+          MAX_BASE_AGE_DAYS=14
+          NOW=$(date -u +%s)
+          UNIQUE_BASES=$(printf '%s\n' "${BASE_IMAGES[@]}" | sort -u)
+          while IFS= read -r BASE; do
+            CREATED=$(skopeo inspect --format '{{index .Labels "org.opencontainers.image.created"}}' "docker://${BASE}" 2>/dev/null || echo "")
+            if [[ -z "$CREATED" ]]; then
+              echo "::warning::Could not read created label for ${BASE}; skipping age check"
+              continue
+            fi
+            AGE_DAYS=$(( (NOW - $(date -u -d "$CREATED" +%s)) / 86400 ))
+            echo "Base ${BASE} is ${AGE_DAYS}d old (created ${CREATED})"
+            if (( AGE_DAYS > MAX_BASE_AGE_DAYS )); then
+              echo "::error::Base ${BASE} is ${AGE_DAYS}d old (>${MAX_BASE_AGE_DAYS}d). Upstream may be stalled."
+              exit 1
+            fi
+          done <<< "$UNIQUE_BASES"
 
           for i in "${!SUFFIXES[@]}"; do
             suffix="${SUFFIXES[$i]}"
@@ -102,15 +125,19 @@ jobs:
           - name: razorfin
             base_image: ghcr.io/ublue-os/bazzite:stable
             suffix: ""
+            install_dx: "0"
           - name: razorfin-dx
-            base_image: ghcr.io/ublue-os/bazzite-dx:stable
+            base_image: ghcr.io/ublue-os/bazzite:stable
             suffix: "-dx"
+            install_dx: "1"
           - name: razorfin-nvidia-open
             base_image: ghcr.io/ublue-os/bazzite-nvidia-open:stable
             suffix: "-nvidia-open"
+            install_dx: "0"
           - name: razorfin-dx-nvidia-open
-            base_image: ghcr.io/ublue-os/bazzite-dx-nvidia:stable
+            base_image: ghcr.io/ublue-os/bazzite-nvidia-open:stable
             suffix: "-dx-nvidia-open"
+            install_dx: "1"
 
     permissions:
       contents: read
@@ -165,6 +192,7 @@ jobs:
         run: |
           sudo buildah build \
             --build-arg BASE_IMAGE=${{ matrix.variant.base_image }} \
+            --build-arg INSTALL_DX=${{ matrix.variant.install_dx }} \
             --tag raw-img \
             .
 
