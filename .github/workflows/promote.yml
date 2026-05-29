@@ -70,17 +70,27 @@ jobs:
           IMAGE="${IMAGE_REGISTRY}/${IMAGE_NAME}${{ matrix.suffix }}"
           DATE_TAG=$(date +%Y%m%d)
 
-          if ! skopeo inspect "docker://${IMAGE}:latest" > /dev/null 2>&1; then
+          echo "::notice::GHCR inspect ${IMAGE}:latest"
+          DIGEST=$(skopeo inspect --format '{{.Digest}}' "docker://${IMAGE}:latest" 2>/dev/null || true)
+          if [[ -z "${DIGEST}" ]]; then
             echo "Source tag latest not found for ${{ matrix.suffix || 'base' }}, skipping"
             exit 0
           fi
 
-          DIGEST=$(skopeo inspect --format '{{.Digest}}' "docker://${IMAGE}:latest")
-          echo "Promoting ${IMAGE}:latest → stable (${DIGEST})"
+          echo "::notice::GHCR inspect ${IMAGE}:stable"
+          STABLE_DIGEST=$(skopeo inspect --format '{{.Digest}}' "docker://${IMAGE}:stable" 2>/dev/null || true)
+          if [[ "${DIGEST}" == "${STABLE_DIGEST}" ]]; then
+            echo "stable already points to ${DIGEST}; skipping copy/date-tag/sign"
+            exit 0
+          fi
 
+          echo "Promoting ${IMAGE}:latest → stable (${DIGEST})"
+          echo "::notice::GHCR copy ${IMAGE}:latest -> ${IMAGE}:stable"
           skopeo copy "docker://${IMAGE}:latest" "docker://${IMAGE}:stable"
+          echo "::notice::GHCR copy ${IMAGE}:latest -> ${IMAGE}:stable.${DATE_TAG}"
           skopeo copy "docker://${IMAGE}:latest" "docker://${IMAGE}:stable.${DATE_TAG}"
 
+          echo "::notice::GHCR cosign sign ${IMAGE}@${DIGEST}"
           cosign sign -y --key env://COSIGN_PRIVATE_KEY "${IMAGE}@${DIGEST}"
 
       - name: Promote testing to latest
@@ -91,17 +101,27 @@ jobs:
           IMAGE="${IMAGE_REGISTRY}/${IMAGE_NAME}${{ matrix.suffix }}"
           DATE_TAG=$(date +%Y%m%d)
 
-          if ! skopeo inspect "docker://${IMAGE}:testing" > /dev/null 2>&1; then
+          echo "::notice::GHCR inspect ${IMAGE}:testing"
+          DIGEST=$(skopeo inspect --format '{{.Digest}}' "docker://${IMAGE}:testing" 2>/dev/null || true)
+          if [[ -z "${DIGEST}" ]]; then
             echo "Source tag testing not found for ${{ matrix.suffix || 'base' }}, skipping"
             exit 0
           fi
 
-          DIGEST=$(skopeo inspect --format '{{.Digest}}' "docker://${IMAGE}:testing")
-          echo "Promoting ${IMAGE}:testing → latest (${DIGEST})"
+          echo "::notice::GHCR inspect ${IMAGE}:latest"
+          LATEST_DIGEST=$(skopeo inspect --format '{{.Digest}}' "docker://${IMAGE}:latest" 2>/dev/null || true)
+          if [[ "${DIGEST}" == "${LATEST_DIGEST}" ]]; then
+            echo "latest already points to ${DIGEST}; skipping copy/date-tag/sign"
+            exit 0
+          fi
 
+          echo "Promoting ${IMAGE}:testing → latest (${DIGEST})"
+          echo "::notice::GHCR copy ${IMAGE}:testing -> ${IMAGE}:latest"
           skopeo copy "docker://${IMAGE}:testing" "docker://${IMAGE}:latest"
+          echo "::notice::GHCR copy ${IMAGE}:testing -> ${IMAGE}:latest.${DATE_TAG}"
           skopeo copy "docker://${IMAGE}:testing" "docker://${IMAGE}:latest.${DATE_TAG}"
 
+          echo "::notice::GHCR cosign sign ${IMAGE}@${DIGEST}"
           cosign sign -y --key env://COSIGN_PRIVATE_KEY "${IMAGE}@${DIGEST}"
 
       - name: Manual promotion
@@ -114,15 +134,25 @@ jobs:
           TARGET="${{ inputs.target_tag }}"
           DATE_TAG=$(date +%Y%m%d)
 
-          if ! skopeo inspect "docker://${IMAGE}:${SOURCE}" > /dev/null 2>&1; then
+          echo "::notice::GHCR inspect ${IMAGE}:${SOURCE}"
+          DIGEST=$(skopeo inspect --format '{{.Digest}}' "docker://${IMAGE}:${SOURCE}" 2>/dev/null || true)
+          if [[ -z "${DIGEST}" ]]; then
             echo "Source tag ${SOURCE} not found for ${{ matrix.suffix || 'base' }}, skipping"
             exit 0
           fi
 
-          DIGEST=$(skopeo inspect --format '{{.Digest}}' "docker://${IMAGE}:${SOURCE}")
-          echo "Promoting ${IMAGE}:${SOURCE} → ${TARGET} (${DIGEST})"
+          echo "::notice::GHCR inspect ${IMAGE}:${TARGET}"
+          TARGET_DIGEST=$(skopeo inspect --format '{{.Digest}}' "docker://${IMAGE}:${TARGET}" 2>/dev/null || true)
+          if [[ "${DIGEST}" == "${TARGET_DIGEST}" ]]; then
+            echo "${TARGET} already points to ${DIGEST}; skipping copy/date-tag/sign"
+            exit 0
+          fi
 
+          echo "Promoting ${IMAGE}:${SOURCE} → ${TARGET} (${DIGEST})"
+          echo "::notice::GHCR copy ${IMAGE}:${SOURCE} -> ${IMAGE}:${TARGET}"
           skopeo copy "docker://${IMAGE}:${SOURCE}" "docker://${IMAGE}:${TARGET}"
+          echo "::notice::GHCR copy ${IMAGE}:${SOURCE} -> ${IMAGE}:${TARGET}.${DATE_TAG}"
           skopeo copy "docker://${IMAGE}:${SOURCE}" "docker://${IMAGE}:${TARGET}.${DATE_TAG}"
 
+          echo "::notice::GHCR cosign sign ${IMAGE}@${DIGEST}"
           cosign sign -y --key env://COSIGN_PRIVATE_KEY "${IMAGE}@${DIGEST}"

@@ -79,6 +79,7 @@ jobs:
           NOW=$(date -u +%s)
           UNIQUE_BASES=$(printf '%s\n' "${BASE_IMAGES[@]}" | sort -u)
           while IFS= read -r BASE; do
+            echo "::notice::GHCR inspect ${BASE}"
             CREATED=$(skopeo inspect --format '{{index .Labels "org.opencontainers.image.created"}}' "docker://${BASE}" 2>/dev/null || echo "")
             if [[ -z "$CREATED" ]]; then
               echo "::warning::Could not read created label for ${BASE}; skipping age check"
@@ -92,12 +93,19 @@ jobs:
             fi
           done <<< "$UNIQUE_BASES"
 
+          declare -A BASE_DIGEST_CACHE=()
+
           for i in "${!SUFFIXES[@]}"; do
             suffix="${SUFFIXES[$i]}"
             BASE="${BASE_IMAGES[$i]}"
             OUR_IMAGE="${IMAGE_REGISTRY}/${IMAGE_NAME}${suffix}:testing"
 
-            BASE_DIGEST=$(skopeo inspect --format '{{.Digest}}' "docker://${BASE}" 2>/dev/null || echo "unknown")
+            if [[ -z "${BASE_DIGEST_CACHE[$BASE]:-}" ]]; then
+              echo "::notice::GHCR inspect ${BASE}"
+              BASE_DIGEST_CACHE[$BASE]=$(skopeo inspect --format '{{.Digest}}' "docker://${BASE}" 2>/dev/null || echo "unknown")
+            fi
+            BASE_DIGEST="${BASE_DIGEST_CACHE[$BASE]}"
+            echo "::notice::GHCR inspect ${OUR_IMAGE}"
             CURRENT_BASE=$(skopeo inspect --format '{{index .Labels "org.opencontainers.image.base.digest"}}' "docker://${OUR_IMAGE}" 2>/dev/null || echo "")
 
             echo "Checking ${suffix:-base}: upstream=${BASE_DIGEST:0:20}... current=${CURRENT_BASE:0:20}..."
@@ -174,6 +182,7 @@ jobs:
       - name: Get base image digest
         id: base
         run: |
+          echo "::notice::GHCR inspect ${{ matrix.variant.base_image }}"
           BASE_DIGEST=$(skopeo inspect --format '{{.Digest}}' "docker://${{ matrix.variant.base_image }}")
           echo "digest=${BASE_DIGEST}" >> "$GITHUB_OUTPUT"
 
@@ -208,7 +217,9 @@ jobs:
         if: github.event_name != 'pull_request' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
         run: |
           PREV_REF="${{ env.IMAGE_REGISTRY }}/${{ env.IMAGE_NAME }}${{ matrix.variant.suffix }}:${{ env.DEFAULT_TAG }}"
+          echo "::notice::GHCR inspect ${PREV_REF}"
           if sudo skopeo inspect "docker://${PREV_REF}" > /dev/null 2>&1; then
+            echo "::notice::GHCR pull previous image for rechunk ${PREV_REF}"
             sudo podman pull "${PREV_REF}"
             echo "prev_ref=${PREV_REF}" >> "$GITHUB_OUTPUT"
           else
@@ -251,6 +262,7 @@ jobs:
 
           # Push with each tag
           for tag in ${{ steps.metadata.outputs.alias_tags }}; do
+            echo "::notice::GHCR push ${IMAGE}:${tag}"
             sudo skopeo copy "${{ steps.rechunk.outputs.ref }}" "docker://${IMAGE}:${tag}"
           done
 
@@ -268,6 +280,7 @@ jobs:
       - name: Sign container image
         if: github.event_name != 'pull_request' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
         run: |
+          echo "::notice::GHCR cosign sign ${{ steps.push.outputs.image }}@${{ steps.push.outputs.digest }}"
           cosign sign -y --key env://COSIGN_PRIVATE_KEY \
             "${{ steps.push.outputs.image }}@${{ steps.push.outputs.digest }}"
         env:
@@ -282,11 +295,21 @@ jobs:
           IMAGE="${{ steps.push.outputs.image }}"
           DATE_TAG=$(date +%Y%m%d)
 
-          sudo skopeo copy "docker://${IMAGE}:${{ env.DEFAULT_TAG }}" "docker://${IMAGE}:latest"
-          sudo skopeo copy "docker://${IMAGE}:${{ env.DEFAULT_TAG }}" "docker://${IMAGE}:latest.${DATE_TAG}"
+          echo "::notice::GHCR inspect ${IMAGE}:${{ env.DEFAULT_TAG }}"
+          SOURCE_DIGEST=$(sudo skopeo inspect --format '{{.Digest}}' "docker://${IMAGE}:${{ env.DEFAULT_TAG }}")
+          echo "::notice::GHCR inspect ${IMAGE}:latest"
+          TARGET_DIGEST=$(sudo skopeo inspect --format '{{.Digest}}' "docker://${IMAGE}:latest" 2>/dev/null || true)
+          if [[ "${SOURCE_DIGEST}" == "${TARGET_DIGEST}" ]]; then
+            echo "latest already points to ${SOURCE_DIGEST}; skipping emergency latest copy/sign"
+          else
+            echo "::notice::GHCR copy ${IMAGE}:${{ env.DEFAULT_TAG }} -> ${IMAGE}:latest"
+            sudo skopeo copy "docker://${IMAGE}:${{ env.DEFAULT_TAG }}" "docker://${IMAGE}:latest"
+            echo "::notice::GHCR copy ${IMAGE}:${{ env.DEFAULT_TAG }} -> ${IMAGE}:latest.${DATE_TAG}"
+            sudo skopeo copy "docker://${IMAGE}:${{ env.DEFAULT_TAG }}" "docker://${IMAGE}:latest.${DATE_TAG}"
 
-          cosign sign -y --key env://COSIGN_PRIVATE_KEY \
-            "${IMAGE}@${{ steps.push.outputs.digest }}"
+            cosign sign -y --key env://COSIGN_PRIVATE_KEY \
+              "${IMAGE}@${{ steps.push.outputs.digest }}"
+          fi
         env:
           COSIGN_PRIVATE_KEY: ${{ secrets.COSIGN_PRIVATE_KEY }}
 
@@ -299,10 +322,20 @@ jobs:
           IMAGE="${{ steps.push.outputs.image }}"
           DATE_TAG=$(date +%Y%m%d)
 
-          sudo skopeo copy "docker://${IMAGE}:${{ env.DEFAULT_TAG }}" "docker://${IMAGE}:stable"
-          sudo skopeo copy "docker://${IMAGE}:${{ env.DEFAULT_TAG }}" "docker://${IMAGE}:stable.${DATE_TAG}"
+          echo "::notice::GHCR inspect ${IMAGE}:${{ env.DEFAULT_TAG }}"
+          SOURCE_DIGEST=$(sudo skopeo inspect --format '{{.Digest}}' "docker://${IMAGE}:${{ env.DEFAULT_TAG }}")
+          echo "::notice::GHCR inspect ${IMAGE}:stable"
+          TARGET_DIGEST=$(sudo skopeo inspect --format '{{.Digest}}' "docker://${IMAGE}:stable" 2>/dev/null || true)
+          if [[ "${SOURCE_DIGEST}" == "${TARGET_DIGEST}" ]]; then
+            echo "stable already points to ${SOURCE_DIGEST}; skipping emergency stable copy/sign"
+          else
+            echo "::notice::GHCR copy ${IMAGE}:${{ env.DEFAULT_TAG }} -> ${IMAGE}:stable"
+            sudo skopeo copy "docker://${IMAGE}:${{ env.DEFAULT_TAG }}" "docker://${IMAGE}:stable"
+            echo "::notice::GHCR copy ${IMAGE}:${{ env.DEFAULT_TAG }} -> ${IMAGE}:stable.${DATE_TAG}"
+            sudo skopeo copy "docker://${IMAGE}:${{ env.DEFAULT_TAG }}" "docker://${IMAGE}:stable.${DATE_TAG}"
 
-          cosign sign -y --key env://COSIGN_PRIVATE_KEY \
-            "${IMAGE}@${{ steps.push.outputs.digest }}"
+            cosign sign -y --key env://COSIGN_PRIVATE_KEY \
+              "${IMAGE}@${{ steps.push.outputs.digest }}"
+          fi
         env:
           COSIGN_PRIVATE_KEY: ${{ secrets.COSIGN_PRIVATE_KEY }}
