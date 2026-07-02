@@ -75,7 +75,14 @@ jobs:
           # in the last MAX_BASE_AGE_DAYS days. Would have caught the
           # bazzite-dx-nvidia F43 freeze automatically. Unique-ify the
           # list first so we only inspect each base once.
-          MAX_BASE_AGE_DAYS=14
+          #
+          # 30d, not 14d: Bazzite's :stable channel legitimately goes up to
+          # ~21 days between publishes (e.g. 2026-06-08 -> 2026-06-29). A 14d
+          # threshold is tighter than the channel's own cadence, so every slow
+          # cycle produced ~5 days of false-alarm failing CI. 30d still catches
+          # an indefinite/abandoned freeze (the dx-nvidia F43 scenario) while
+          # tolerating normal stable cadence.
+          MAX_BASE_AGE_DAYS=30
           NOW=$(date -u +%s)
           UNIQUE_BASES=$(printf '%s\n' "${BASE_IMAGES[@]}" | sort -u)
           while IFS= read -r BASE; do
