@@ -257,9 +257,15 @@ _build-iso-titanoboa $image_ref $iso_name:
 
     echo "Building ISO for ${image_ref} using Titanoboa..."
 
-    # Clone titanoboa if not already present
+    # Clone titanoboa pinned to v0.2 — the last release with the
+    # HOOK_post_rootfs interface; upstream main dropped hook support.
+    # Keep in sync with the pin in .github/workflows/build-iso.yml.
+    if [[ -d ".titanoboa" ]] && [[ "$(git -C .titanoboa describe --tags --exact-match 2>/dev/null)" != "v0.2" ]]; then
+        echo "Existing .titanoboa checkout is not v0.2; re-cloning..."
+        rm -rf .titanoboa
+    fi
     if [[ ! -d ".titanoboa" ]]; then
-        git clone --depth 1 https://github.com/ublue-os/titanoboa.git .titanoboa
+        git clone --depth 1 --branch v0.2 https://github.com/ublue-os/titanoboa.git .titanoboa
     fi
 
     sudo \

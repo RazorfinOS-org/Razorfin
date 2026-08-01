@@ -47,7 +47,23 @@ To track a different channel, replace `:stable` with `:latest` or `:testing`.
 
 ### Fresh Install via ISO
 
-Download the ISO for your hardware from the [Releases](https://github.com/razorfinos-org/Razorfin/releases) page and boot from it. ISOs are built monthly from the `stable` channel.
+ISOs are built monthly from the `stable` channel. Each build is published on the
+[Releases](https://github.com/razorfinos-org/Razorfin/releases) page with SHA256
+checksums and the exact image digests it was built from. The ISOs themselves are
+hosted at download.razorfin.org — only the newest stable build is kept.
+
+| Variant | Download |
+|---------|----------|
+| Razorfin (AMD/Intel) | <https://download.razorfin.org/razorfin-live-amd64.iso> |
+| Razorfin NVIDIA Open | <https://download.razorfin.org/razorfin-nvidia-open-live-amd64.iso> |
+
+Verify your download:
+
+```bash
+curl -LO https://download.razorfin.org/razorfin-live-amd64.iso
+curl -LO https://download.razorfin.org/razorfin-live-amd64.iso.sha256
+sha256sum -c razorfin-live-amd64.iso.sha256
+```
 
 ## Image Verification
 

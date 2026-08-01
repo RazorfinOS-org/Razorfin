@@ -20,7 +20,7 @@ Each promotion also produces a date-stamped tag for rollback purposes (e.g., `te
 |----------|------|---------|
 | **Build** | `build.yml` | Checks for upstream Bazzite changes, builds all four variants, and pushes to the `testing` tag |
 | **Promote** | `promote.yml` | Handles daily and weekly promotion via `skopeo copy` with Cosign signing |
-| **Build ISOs** | `build-iso.yml` | Produces monthly ISO builds from the `stable` channel (configurable) |
+| **Build ISOs** | `build-iso.yml` | Produces monthly ISO builds from the `stable` channel (configurable), uploads them to Cloudflare R2 (served at download.razorfin.org), and auto-publishes a GitHub release (stable builds only) |
 
 ## 4. Standard Promotion Flow
 
@@ -118,6 +118,22 @@ ISOs are built from `stable` by default. To build from a different channel:
 
 The ISO kickstart `%post` script runs `bootc switch` using the tag of the source image. For example, an ISO built from `stable` will configure the installed system to track `:stable` for future updates.
 
+Notes:
+
+- Dispatching with **`channel: stable`** behaves exactly like the monthly scheduled run, **including publishing a `vYYYYMMDD` GitHub release**. This is the procedure for cutting an out-of-cycle ISO release.
+- Dispatching with **`testing` or `latest`** skips the release and uploads the ISOs under channel-suffixed filenames (e.g. `razorfin-live-amd64-testing.iso`), so the public stable download URLs are never overwritten by a non-stable build.
+
+## 8.1 Monthly ISO Releases
+
+Stable ISO builds automatically publish a GitHub release:
+
+- **Tag scheme:** `vYYYYMMDD` (UTC date of the build, e.g. `v20260801`), marked as the latest release.
+- **Contents:** SHA256 checksum files as release assets; the release body links the ISO downloads on download.razorfin.org and records the exact `stable` image digests the ISOs were built from.
+- **Hosting:** the ISOs themselves live on R2, not as release assets. Only the newest stable build is kept, so older releases' checksums will not match the current downloads.
+- **Idempotency:** re-running the workflow on the same UTC day deletes and recreates that day's release and tag.
+- **Partial failure:** the release job only runs when *both* variant ISO builds succeed. If one leg fails, fix the issue and use **Re-run failed jobs** on the run — the release publishes automatically once both legs are green.
+- **Titanoboa pin:** the workflow and the Justfile pin `ublue-os/titanoboa` to `v0.2`, the last release supporting `hook-post-rootfs`. Do not bump the pin without migrating `iso_files/configure_iso.sh` to the new container-native ISO contract.
+
 ## 9. Seeding Initial Tags
 
 When the channel system is first deployed, only `testing` tags will exist. To seed the remaining channels:
@@ -179,7 +195,15 @@ The emergency promote steps in `build.yml` execute after the standard push step.
 
 The build workflow's `check` job compares upstream Bazzite base image digests against the `org.opencontainers.image.base.digest` label stored on the current `:testing` images. If all digests match, the build is skipped. This is normal and avoids unnecessary rebuilds. To force a rebuild regardless, use **Actions > Build container image > Run workflow** (manual dispatch always builds).
 
-### 11.5 Users Tracking a Legacy Channel Tag
+### 11.5 Release Missing After an ISO Run
+
+The release job requires both variant ISO builds to succeed. Open the run, check which matrix leg failed, fix the cause, and use **Re-run failed jobs** — the release job runs automatically once both legs are green. If the run is re-dispatched instead, the same-day tag is replaced (see §8.1 idempotency).
+
+### 11.6 Old Release Checksums Don't Match a Downloaded ISO
+
+Downloads at download.razorfin.org always serve the newest stable build, while release pages are immutable. Verify a download against the checksums of the **newest** release, not an older one.
+
+### 11.7 Users Tracking a Legacy Channel Tag
 
 Users who installed their system before the channel system was introduced may still be tracking `:latest` from the previous direct-push configuration. This does not require immediate action, as `:latest` continues to receive daily updates. To migrate a system to `stable`:
 

@@ -49,12 +49,24 @@ jobs:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
+      - name: Capture source image digest
+        id: digest
+        shell: bash
+        run: |
+          DIGEST=$(skopeo inspect --format '{{.Digest}}' "docker://${{ matrix.image-ref }}")
+          echo "digest=${DIGEST}" >> "$GITHUB_OUTPUT"
+
+      # Pinned to v0.2 — the last titanoboa release with the hook-post-rootfs
+      # interface. Upstream main was rewritten around May 2026 and dropped hook
+      # support entirely (config moved into the image per the container-native
+      # ISO contract). Migrating is tracked separately; do not bump this pin to
+      # main or a newer tag without reworking iso_files/configure_iso.sh.
       - name: Build ISO
-        uses: ublue-os/titanoboa@main
+        uses: ublue-os/titanoboa@840217d97bd0bc9a52466508c54d8dda5c5ba2fd # v0.2
         id: build
         with:
           image-ref: ${{ matrix.image-ref }}
-          iso-dest: ${{ matrix.image }}-live-amd64.iso
+          iso-dest: ${{ matrix.image }}-live-amd64${{ (inputs.channel || 'stable') != 'stable' && format('-{0}', inputs.channel) || '' }}.iso
           hook-post-rootfs: ${{ github.workspace }}/iso_files/configure_iso.sh
 
       - name: Generate checksum
@@ -62,10 +74,12 @@ jobs:
         shell: bash
         run: |
           ISO_UPLOAD_DIR=${{ github.workspace }}/upload
-          DEST="${ISO_UPLOAD_DIR}/$(basename ${{ steps.build.outputs.iso-dest }})"
           mkdir -p "${ISO_UPLOAD_DIR}"
-          mv "${{ steps.build.outputs.iso-dest }}" "${DEST}"
-          sha256sum "${DEST}" > "${DEST}.sha256"
+          mv "${{ steps.build.outputs.iso-dest }}" "${ISO_UPLOAD_DIR}/"
+          cd "${ISO_UPLOAD_DIR}"
+          # Relative filename in the .sha256 so downloaders can run `sha256sum -c`
+          ISO_NAME="$(basename "${{ steps.build.outputs.iso-dest }}")"
+          sha256sum "${ISO_NAME}" > "${ISO_NAME}.sha256"
           echo "iso-upload-dir=${ISO_UPLOAD_DIR}" >> "$GITHUB_OUTPUT"
 
       - name: Upload ISO and checksum to R2
@@ -82,3 +96,85 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y rclone
           rclone copy "${SOURCE_DIR}" R2:${{ secrets.R2_BUCKET_NAME }}
+
+      # Kept out of the R2 upload dir so digest files never ship to the bucket.
+      - name: Prepare release metadata
+        if: ${{ (inputs.channel || 'stable') == 'stable' }}
+        shell: bash
+        run: |
+          META="${{ github.workspace }}/release-meta"
+          mkdir -p "${META}"
+          cp "${{ steps.checksum.outputs.iso-upload-dir }}"/*.sha256 "${META}/"
+          echo "${{ steps.digest.outputs.digest }}" > "${META}/${{ matrix.image }}.digest"
+
+      - name: Upload release metadata
+        if: ${{ (inputs.channel || 'stable') == 'stable' }}
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: release-meta-${{ matrix.image }}
+          path: release-meta/
+          if-no-files-found: error
+          retention-days: 7
+
+  # Publishes only when every matrix leg succeeded. If one leg fails, fix and
+  # use "Re-run failed jobs" — this job then runs automatically.
+  release:
+    name: Publish GitHub release
+    runs-on: ubuntu-24.04
+    needs: build-iso
+    if: ${{ (inputs.channel || 'stable') == 'stable' }}
+    permissions:
+      contents: write
+    steps:
+      - name: Download release metadata
+        uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6.0.0
+        with:
+          pattern: release-meta-*
+          path: meta
+          merge-multiple: true
+
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          TAG="v$(date -u +%Y%m%d)"
+          DL="https://download.razorfin.org"
+
+          BASE_SHA=$(awk '{print $1}' meta/razorfin-live-amd64.iso.sha256)
+          NV_SHA=$(awk '{print $1}' meta/razorfin-nvidia-open-live-amd64.iso.sha256)
+          BASE_DIGEST=$(cat meta/razorfin.digest)
+          NV_DIGEST=$(cat meta/razorfin-nvidia-open.digest)
+
+          cat > notes.md <<EOF
+          Monthly live ISO build from the \`stable\` channel.
+
+          ## Downloads
+
+          | Variant | ISO | SHA256 |
+          |---------|-----|--------|
+          | Razorfin (AMD/Intel) | [razorfin-live-amd64.iso](${DL}/razorfin-live-amd64.iso) | \`${BASE_SHA}\` |
+          | Razorfin NVIDIA Open | [razorfin-nvidia-open-live-amd64.iso](${DL}/razorfin-nvidia-open-live-amd64.iso) | \`${NV_SHA}\` |
+
+          Checksum files are attached as release assets and also served alongside the ISOs (append \`.sha256\` to the download URL).
+
+          ## Built from
+
+          - \`ghcr.io/razorfinos-org/razorfin:stable@${BASE_DIGEST}\`
+          - \`ghcr.io/razorfinos-org/razorfin-nvidia-open:stable@${NV_DIGEST}\`
+
+          > ISO downloads always serve the newest stable build. If a newer release exists, verify your download against that release's checksums instead of these.
+          EOF
+
+          # Idempotent: a re-run on the same day replaces the release and tag.
+          if gh release view "${TAG}" --repo "${GITHUB_REPOSITORY}" &>/dev/null; then
+            echo "::notice::Release ${TAG} already exists; replacing"
+            gh release delete "${TAG}" --repo "${GITHUB_REPOSITORY}" --cleanup-tag --yes
+          fi
+
+          gh release create "${TAG}" meta/*.sha256 \
+            --repo "${GITHUB_REPOSITORY}" \
+            --target "${GITHUB_SHA}" \
+            --title "Razorfin ${TAG}" \
+            --notes-file notes.md \
+            --latest
