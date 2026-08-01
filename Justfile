@@ -257,15 +257,17 @@ _build-iso-titanoboa $image_ref $iso_name:
 
     echo "Building ISO for ${image_ref} using Titanoboa..."
 
-    # Clone titanoboa pinned to v0.2 — the last release with the
-    # HOOK_post_rootfs interface; upstream main dropped hook support.
+    # Clone our fork of titanoboa v0.2 — the last release with the
+    # HOOK_post_rootfs interface; upstream main dropped hook support. The fork
+    # branch adds a just-version pin for compatibility with current just.
     # Keep in sync with the pin in .github/workflows/build-iso.yml.
-    if [[ -d ".titanoboa" ]] && [[ "$(git -C .titanoboa describe --tags --exact-match 2>/dev/null)" != "v0.2" ]]; then
-        echo "Existing .titanoboa checkout is not v0.2; re-cloning..."
+    titanoboa_sha="4efd95b94d70ddbb978b3f244a0906be97a1f845"
+    if [[ -d ".titanoboa" ]] && [[ "$(git -C .titanoboa rev-parse HEAD 2>/dev/null)" != "${titanoboa_sha}" ]]; then
+        echo "Existing .titanoboa checkout is not at the pinned commit; re-cloning..."
         rm -rf .titanoboa
     fi
     if [[ ! -d ".titanoboa" ]]; then
-        git clone --depth 1 --branch v0.2 https://github.com/ublue-os/titanoboa.git .titanoboa
+        git clone --depth 1 --branch razorfin/v0.2-pinned-just https://github.com/RazorfinOS-org/titanoboa.git .titanoboa
     fi
 
     sudo \

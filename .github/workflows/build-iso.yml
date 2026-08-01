@@ -56,13 +56,15 @@ jobs:
           DIGEST=$(skopeo inspect --format '{{.Digest}}' "docker://${{ matrix.image-ref }}")
           echo "digest=${DIGEST}" >> "$GITHUB_OUTPUT"
 
-      # Pinned to v0.2 — the last titanoboa release with the hook-post-rootfs
-      # interface. Upstream main was rewritten around May 2026 and dropped hook
-      # support entirely (config moved into the image per the container-native
-      # ISO contract). Migrating is tracked separately; do not bump this pin to
-      # main or a newer tag without reworking iso_files/configure_iso.sh.
+      # Pinned to our fork of titanoboa v0.2 — the last release with the
+      # hook-post-rootfs interface. Upstream main was rewritten around May 2026
+      # and dropped hook support entirely (config moved into the image per the
+      # container-native ISO contract). The fork adds one commit pinning just
+      # to 1.50.0, since v0.2's Justfile predates the `set lists` feature that
+      # just 1.54+ requires for which(). Migrating is tracked in #18; do not
+      # bump this pin without reworking iso_files/configure_iso.sh.
       - name: Build ISO
-        uses: ublue-os/titanoboa@840217d97bd0bc9a52466508c54d8dda5c5ba2fd # v0.2
+        uses: RazorfinOS-org/titanoboa@4efd95b94d70ddbb978b3f244a0906be97a1f845 # v0.2 + just pin
         id: build
         with:
           image-ref: ${{ matrix.image-ref }}

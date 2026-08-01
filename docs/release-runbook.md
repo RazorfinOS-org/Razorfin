@@ -132,7 +132,7 @@ Stable ISO builds automatically publish a GitHub release:
 - **Hosting:** the ISOs themselves live on R2, not as release assets. Only the newest stable build is kept, so older releases' checksums will not match the current downloads.
 - **Idempotency:** re-running the workflow on the same UTC day deletes and recreates that day's release and tag.
 - **Partial failure:** the release job only runs when *both* variant ISO builds succeed. If one leg fails, fix the issue and use **Re-run failed jobs** on the run — the release publishes automatically once both legs are green.
-- **Titanoboa pin:** the workflow and the Justfile pin `ublue-os/titanoboa` to `v0.2`, the last release supporting `hook-post-rootfs`. Do not bump the pin without migrating `iso_files/configure_iso.sh` to the new container-native ISO contract.
+- **Titanoboa pin:** the workflow and the Justfile pin the org fork `RazorfinOS-org/titanoboa` at branch `razorfin/v0.2-pinned-just` (upstream `v0.2`, the last release supporting `hook-post-rootfs`, plus a commit pinning just to 1.50.0 since v0.2's Justfile is incompatible with just 1.54+). Do not bump the pin without migrating `iso_files/configure_iso.sh` to the new container-native ISO contract (#18).
 
 ## 9. Seeding Initial Tags
 
