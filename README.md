@@ -138,6 +138,7 @@ See the [release runbook](docs/release-runbook.md) for details on the CI/CD pipe
 
 ## Community
 
+- [razorfin.org](https://razorfin.org) — project website and downloads
 - [Universal Blue Forums](https://universal-blue.discourse.group/)
 - [Universal Blue Discord](https://discord.gg/WEu6BdFEtp)
 - [COSMIC Desktop](https://system76.com/cosmic)
