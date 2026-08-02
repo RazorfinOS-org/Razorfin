@@ -1,6 +1,20 @@
 # Razorfin
 
-[![build](https://github.com/RazorfinOS-org/Razorfin/actions/workflows/build.yml/badge.svg)](https://github.com/RazorfinOS-org/Razorfin/actions/workflows/build.yml)
+<p>
+  <a href="https://github.com/RazorfinOS-org/Razorfin/actions/workflows/build.yml"><img alt="build" src="https://github.com/RazorfinOS-org/Razorfin/actions/workflows/build.yml/badge.svg"></a>
+  <a href="https://github.com/RazorfinOS-org/Razorfin/releases/latest"><picture>
+    <source media="(prefers-color-scheme: dark)" srcset="https://shieldcn.dev/github/release/RazorfinOS-org/Razorfin.svg?theme=dark">
+    <img alt="release" src="https://shieldcn.dev/github/release/RazorfinOS-org/Razorfin.svg">
+  </picture></a>
+  <a href="LICENSE"><picture>
+    <source media="(prefers-color-scheme: dark)" srcset="https://shieldcn.dev/github/license/RazorfinOS-org/Razorfin.svg?theme=dark">
+    <img alt="license" src="https://shieldcn.dev/github/license/RazorfinOS-org/Razorfin.svg">
+  </picture></a>
+  <a href="https://bazzite.gg/"><img alt="built on Bazzite" src="https://shieldcn.dev/badge/built_on-Bazzite-orange.svg?logo=fedora"></a>
+  <a href="https://system76.com/cosmic"><img alt="desktop COSMIC" src="https://shieldcn.dev/badge/desktop-COSMIC-blue.svg?logo=system76"></a>
+  <a href="https://github.com/orgs/RazorfinOS-org/packages?repo_name=Razorfin"><img alt="images on GHCR" src="https://shieldcn.dev/badge/images-GHCR-blue.svg?logo=github"></a>
+  <a href="#image-verification"><img alt="signed with cosign" src="https://shieldcn.dev/badge/signed-cosign-green.svg?logo=ri:GoShieldLock"></a>
+</p>
 
 Razorfin is a custom [Universal Blue](https://universal-blue.org/) image based on [Bazzite](https://bazzite.gg/) that replaces KDE Plasma with the [COSMIC](https://system76.com/cosmic) desktop environment. It combines Bazzite's gaming optimizations and hardware support with System76's next-generation Rust-based desktop.
 
