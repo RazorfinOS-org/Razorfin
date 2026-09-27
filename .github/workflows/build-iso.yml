@@ -61,7 +61,7 @@ jobs:
       # and dropped hook support entirely (config moved into the image per the
       # container-native ISO contract). The fork adds one commit pinning just
       # to 1.50.0, since v0.2's Justfile predates the `set lists` feature that
-      # just 1.54+ requires for which(). Migrating is tracked in #18; do not
+      # just 1.54+ requires for which(). Migrating is tracked in #1; do not
       # bump this pin without reworking iso_files/configure_iso.sh.
       - name: Build ISO
         uses: RazorfinOS-org/titanoboa@4efd95b94d70ddbb978b3f244a0906be97a1f845 # v0.2 + just pin

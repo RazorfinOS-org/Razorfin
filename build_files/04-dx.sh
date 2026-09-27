@@ -8,10 +8,13 @@ set -xeuo pipefail
 # and Sunshine streaming on top of the chosen base. Gated so non-dx variants
 # share the same Containerfile but skip this step entirely.
 #
-# Background: upstream bazzite-dx/bazzite-dx-nvidia is frozen on F43
-# (https://github.com/ublue-os/bazzite-dx/issues/170 — commit 1685003c
-# made dx derive from the slow-rolled deck images). We instead layer the
-# dx packages on top of the actively-maintained F44 bazzite / bazzite-nvidia-open.
+# Background: upstream bazzite-dx/bazzite-dx-nvidia derive from the
+# bazzite-deck / bazzite-deck-nvidia handheld images (commit 1685003c), not
+# the desktop images. That once left them frozen on F43
+# (https://github.com/ublue-os/bazzite-dx/issues/170, closed 2026-06-05, and
+# they are back on F44), but the deck base is still wrong for a desktop
+# image. We keep layering the dx packages on top of the desktop F44
+# bazzite / bazzite-nvidia-open bases.
 
 if [[ "${INSTALL_DX:-0}" != "1" ]]; then
     echo "INSTALL_DX != 1 — skipping dx layer"
@@ -69,7 +72,7 @@ FEDORA_PACKAGES=(
     virt-viewer
     swtpm
     swtpm-tools
-    edk2-ovmf
+    # edk2-ovmf is pinned separately below
     libguestfs
     guestfs-tools
     osinfo-db
@@ -105,6 +108,23 @@ echo "Installing ${#FEDORA_PACKAGES[@]} dx packages from Fedora repos..."
 dnf5 install -y "${FEDORA_PACKAGES[@]}"
 
 # -----------------------------------------------------------------------------
+# edk2-ovmf pin — 20260812-8 (the Bazzite base's version since 44.20260914)
+# hangs Windows 11 Secure Boot guests before the TianoCore splash.
+#   https://github.com/ublue-os/bazzite/issues/5857
+#   https://bugzilla.redhat.com/show_bug.cgi?id=2537116
+# Same pin as upstream bazzite-dx (bb84187). Remove once Fedora ships a
+# fixed build; the warning below flags when the base moves past the bad one.
+# -----------------------------------------------------------------------------
+EDK2_BAD="20260812-8.fc44"
+EDK2_PIN="20260508-8.fc44"
+EDK2_BASE="$(rpm -q --queryformat '%{version}-%{release}' edk2-ovmf 2>/dev/null || true)"
+if [[ -n "${EDK2_BASE}" && "${EDK2_BASE}" != "${EDK2_BAD}" ]]; then
+    echo "::warning::edk2-ovmf in base is ${EDK2_BASE}, not ${EDK2_BAD}; re-check whether the ${EDK2_PIN} pin is still needed"
+fi
+dnf5 install -y \
+    "https://kojipkgs.fedoraproject.org/packages/edk2/${EDK2_PIN%-*}/${EDK2_PIN#*-}/noarch/edk2-ovmf-${EDK2_PIN}.noarch.rpm"
+
+# -----------------------------------------------------------------------------
 # Docker CE — third-party repo, enabled only for this transaction.
 # Same isolation pattern as copr_install_isolated but for a regular repo.
 # -----------------------------------------------------------------------------
@@ -116,6 +136,61 @@ dnf5 -y install --enablerepo=docker-ce-stable \
     containerd.io \
     docker-buildx-plugin \
     docker-compose-plugin
+
+# Load iptable_nat for docker-in-docker (devcontainers), as bazzite-dx does.
+#   https://github.com/ublue-os/bluefin/issues/2365
+#   https://github.com/devcontainers/features/issues/1235
+mkdir -p /usr/lib/modules-load.d
+echo "iptable_nat" > /usr/lib/modules-load.d/razorfin-docker.conf
+
+# -----------------------------------------------------------------------------
+# docker group — add wheel users so docker works without sudo.
+# The docker group only exists in /usr/lib/group (nss-altfiles), which
+# usermod can't modify, so copy it into /etc/group first. Same approach as
+# bazzite-dx's dx-usergroups hook (which needs ublue-setup-services; we don't
+# ship that). Runs after rechunker-group-fix so /etc/gshadow gets rebuilt
+# with the docker entry on every boot. The done-marker is only written once
+# a wheel user exists: on fresh installs the first user may be created by
+# cosmic-initial-setup after this runs at first boot, so it retries next boot.
+# -----------------------------------------------------------------------------
+cat > /usr/libexec/razorfin-dx-groups <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+
+if ! grep -q '^docker:' /etc/group; then
+    grep '^docker:' /usr/lib/group >> /etc/group
+fi
+
+mapfile -t wheel_users < <(getent group wheel | cut -d: -f4 | tr ',' '\n' | sed '/^$/d')
+if [[ ${#wheel_users[@]} -eq 0 ]]; then
+    echo "No wheel users yet; will retry next boot"
+    exit 0
+fi
+
+for user in "${wheel_users[@]}"; do
+    usermod -aG docker "${user}"
+done
+
+install -d /var/lib/razorfin
+touch /var/lib/razorfin/dx-groups.done
+EOF
+chmod 0755 /usr/libexec/razorfin-dx-groups
+
+cat > /usr/lib/systemd/system/razorfin-dx-groups.service <<'EOF'
+[Unit]
+Description=Razorfin: add wheel users to the docker group (one-shot)
+After=local-fs.target rechunker-group-fix.service
+Before=systemd-user-sessions.service
+ConditionPathExists=!/var/lib/razorfin/dx-groups.done
+
+[Service]
+Type=oneshot
+ExecStart=/usr/libexec/razorfin-dx-groups
+
+[Install]
+WantedBy=multi-user.target
+EOF
+systemctl enable razorfin-dx-groups.service
 
 # -----------------------------------------------------------------------------
 # Sunshine — lizardbyte/beta COPR (lizardbyte/stable has no F44 build yet).

@@ -45,14 +45,48 @@ jobs:
     runs-on: ubuntu-24.04
     outputs:
       should_build: ${{ steps.check.outputs.should_build }}
+      layer_packages: ${{ steps.layer.outputs.fingerprint }}
     steps:
       - name: Prepare environment
         run: |
           echo "IMAGE_REGISTRY=${IMAGE_REGISTRY,,}" >> "${GITHUB_ENV}"
           echo "IMAGE_NAME=${IMAGE_NAME,,}" >> "${GITHUB_ENV}"
 
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # Fingerprint the packages we layer on top of Bazzite (COSMIC, Docker CE)
+      # so their updates trigger a rebuild even when the base is unchanged.
+      # Computed for every event so every pushed image carries the label.
+      - name: Fingerprint layered packages
+        id: layer
+        run: |
+          echo "::notice::GHCR inspect ghcr.io/ublue-os/bazzite:stable"
+          FEDORA_VERSION=$(skopeo inspect --format '{{index .Labels "org.opencontainers.image.version"}}' \
+            docker://ghcr.io/ublue-os/bazzite:stable | cut -d. -f1)
+          if ! [[ "${FEDORA_VERSION}" =~ ^[0-9]+$ ]]; then
+            echo "::warning::Could not determine Fedora release from bazzite:stable; skipping layered-package check"
+            echo "fingerprint=unknown" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if ! PACKAGES=$(podman run --rm \
+              --volume "${{ github.workspace }}/.github/scripts/layer-packages.sh:/layer-packages.sh:ro" \
+              "registry.fedoraproject.org/fedora:${FEDORA_VERSION}" bash /layer-packages.sh); then
+            echo "::warning::Layered package query failed; skipping layered-package check"
+            echo "fingerprint=unknown" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "Layered packages (Fedora ${FEDORA_VERSION}):"
+          echo "${PACKAGES}"
+          FINGERPRINT=$(sha256sum <<< "${PACKAGES}" | cut -d' ' -f1)
+          echo "fingerprint=${FINGERPRINT}" >> "$GITHUB_OUTPUT"
+
       - name: Check for upstream changes
         id: check
+        env:
+          LAYER_PACKAGES: ${{ steps.layer.outputs.fingerprint }}
         run: |
           # Always build for non-schedule events
           if [[ "${{ github.event_name }}" != "schedule" ]]; then
@@ -113,12 +147,21 @@ jobs:
             fi
             BASE_DIGEST="${BASE_DIGEST_CACHE[$BASE]}"
             echo "::notice::GHCR inspect ${OUR_IMAGE}"
-            CURRENT_BASE=$(skopeo inspect --format '{{index .Labels "org.opencontainers.image.base.digest"}}' "docker://${OUR_IMAGE}" 2>/dev/null || echo "")
+            LABELS=$(skopeo inspect --format '{{json .Labels}}' "docker://${OUR_IMAGE}" 2>/dev/null || echo "{}")
+            CURRENT_BASE=$(jq -r '."org.opencontainers.image.base.digest" // ""' <<< "$LABELS")
+            CURRENT_LAYER=$(jq -r '."org.razorfin.layer-packages" // ""' <<< "$LABELS")
 
             echo "Checking ${suffix:-base}: upstream=${BASE_DIGEST:0:20}... current=${CURRENT_BASE:0:20}..."
+            echo "Checking ${suffix:-base}: layered=${LAYER_PACKAGES:0:20}... current=${CURRENT_LAYER:0:20}..."
 
             if [[ "$BASE_DIGEST" != "$CURRENT_BASE" ]]; then
               echo "Upstream change detected for ${suffix:-base}"
+              echo "should_build=true" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+
+            if [[ "$LAYER_PACKAGES" != "unknown" && "$LAYER_PACKAGES" != "$CURRENT_LAYER" ]]; then
+              echo "Layered package change detected for ${suffix:-base}"
               echo "should_build=true" >> "$GITHUB_OUTPUT"
               exit 0
             fi
@@ -260,6 +303,17 @@ jobs:
             containers.bootc=1
             org.opencontainers.image.base.digest=${{ steps.base.outputs.digest }}
             org.opencontainers.image.base.name=${{ matrix.variant.base_image }}
+            org.razorfin.layer-packages=${{ needs.check.outputs.layer_packages }}
+
+      # 99-cleanup.sh already checks the rpmdb inside the build; this repeats
+      # the check on the rechunked output, which is what users actually get.
+      - name: Verify rpmdb integrity of rechunked image
+        run: |
+          IMG=$(sudo podman pull -q "${{ steps.rechunk.outputs.ref }}")
+          sudo podman run --rm \
+            --volume "${{ github.workspace }}/build_files/shared/verify-rpmdb.sh:/verify-rpmdb.sh:ro" \
+            "${IMG}" bash /verify-rpmdb.sh
+          sudo podman rmi "${IMG}" || true
 
       - name: Push to GHCR
         id: push

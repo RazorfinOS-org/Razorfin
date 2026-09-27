@@ -10,7 +10,7 @@ Razorfin uses a three-tier release channel system. Images are built once and pro
 |---------|-----------------|--------|-----------------|
 | `testing` | Every push to `main` + daily (04:40 UTC) if upstream changed | Fresh build | Developers and testers |
 | `latest` | Daily (10:05 UTC) | Previous day's `testing` | General users |
-| `stable` | Weekly (Tuesday 10:05 UTC) | Previous week's `latest` | Users requiring stability |
+| `stable` | Weekly (Tuesday 10:05 UTC) | The `latest.YYYYMMDD` image from at least 7 days earlier | Users requiring stability |
 
 Each promotion also produces a date-stamped tag for rollback purposes (e.g., `testing.20260208`, `latest.20260208`, `stable.20260208`).
 
@@ -18,7 +18,7 @@ Each promotion also produces a date-stamped tag for rollback purposes (e.g., `te
 
 | Workflow | File | Purpose |
 |----------|------|---------|
-| **Build** | `build.yml` | Checks for upstream Bazzite changes, builds all four variants, and pushes to the `testing` tag |
+| **Build** | `build.yml` | Checks for upstream Bazzite and layered-package changes, builds all four variants, and pushes to the `testing` tag |
 | **Promote** | `promote.yml` | Handles daily and weekly promotion via `skopeo copy` with Cosign signing |
 | **Build ISOs** | `build-iso.yml` | Produces monthly ISO builds from the `stable` channel (configurable), uploads them to Cloudflare R2 (served at download.razorfin.org), and auto-publishes a GitHub release (stable builds only) |
 
@@ -27,18 +27,23 @@ Each promotion also produces a date-stamped tag for rollback purposes (e.g., `te
 ```
 push to main ──┐
                ├──> build.yml: check → build + push to :testing, :testing.YYYYMMDD, :YYYYMMDD
-schedule ──────┘    (skips build if no upstream Bazzite change)
+schedule ──────┘    (skips build if neither Bazzite nor layered packages changed)
     |
     v  (daily 10:05 UTC, promote.yml)
 :testing  -->  :latest, :latest.YYYYMMDD
     |
     v  (Tuesday 10:05 UTC, promote.yml)
-:latest  -->  :stable, :stable.YYYYMMDD
+:latest.YYYYMMDD (newest dated >= 7 days ago)  -->  :stable, :stable.YYYYMMDD
 ```
 
-The build workflow runs a **check** job before building. For scheduled runs (daily at 04:40 UTC), it compares the upstream Bazzite `:stable` digest against the `org.opencontainers.image.base.digest` label on the current `:testing` image. If all base images are unchanged, the build is skipped. Push, pull request, and manual dispatch events always build.
+The build workflow runs a **check** job before building. For scheduled runs (daily at 04:40 UTC), it rebuilds if either of these changed since the current `:testing` image:
 
-On Tuesdays, the stable promotion runs **before** the daily promotion. This ensures that `stable` receives the week-old `latest` image rather than the image just promoted from `testing`.
+- **Base image:** the upstream Bazzite `:stable` digest, compared against the `org.opencontainers.image.base.digest` label.
+- **Layered packages:** a fingerprint of the packages Razorfin installs on top of Bazzite that Bazzite does not ship (COSMIC from Fedora `updates`, plus Docker CE), compared against the `org.razorfin.layer-packages` label. Without this, COSMIC fixes only reached users when Bazzite happened to publish a new base. Sunshine (lizardbyte/beta COPR) is excluded because its date-based versions change daily.
+
+If neither changed, the build is skipped. Push, pull request, and manual dispatch events always build.
+
+On Tuesdays, `stable` is promoted from the newest `latest.YYYYMMDD` tag dated at least 7 days earlier, which is the image `latest` pointed to a week ago. It is **not** the current `latest`. Builds only happen when something upstream changes, so the current `latest` can be a single day old.
 
 ## 5. Image Variants
 
@@ -183,9 +188,9 @@ bootc status
 
 The promote workflow will skip gracefully if the source tag does not exist. This is expected during initial seeding or if a preceding build failed. Review the build workflow logs to determine why the `testing` tag was not pushed.
 
-### 11.2 Tuesday Stable Promotion Received Today's Testing Image
+### 11.2 Tuesday Stable Promotion Skipped or Picked an Unexpected Image
 
-This should not occur under normal operation because the stable promotion step is ordered before the daily testing-to-latest step. If it does occur, review the workflow run logs to confirm step ordering, then use a manual rollback to the `stable.YYYYMMDD` tag from the previous week.
+The stable step logs the `latest.YYYYMMDD` tag it picked and the cutoff date. It skips when `stable` already points to that digest, which is normal when nothing new reached `latest` in the preceding week, or when no `latest.YYYYMMDD` tag is old enough. To promote something else, use the manual promotion with an explicit `latest.YYYYMMDD` source tag.
 
 ### 11.3 Emergency Promote Failed
 
@@ -193,17 +198,21 @@ The emergency promote steps in `build.yml` execute after the standard push step.
 
 ### 11.4 Scheduled Build Skipped: No Upstream Changes
 
-The build workflow's `check` job compares upstream Bazzite base image digests against the `org.opencontainers.image.base.digest` label stored on the current `:testing` images. If all digests match, the build is skipped. This is normal and avoids unnecessary rebuilds. To force a rebuild regardless, use **Actions > Build container image > Run workflow** (manual dispatch always builds).
+The build workflow's `check` job compares upstream Bazzite base image digests against the `org.opencontainers.image.base.digest` label, and the layered-package fingerprint against the `org.razorfin.layer-packages` label, on the current `:testing` images. If both match for every variant, the build is skipped. The job log prints the full layered package list it hashed. If that query fails (e.g. a Fedora mirror outage), the job logs a warning and falls back to the base-digest check alone. This is normal and avoids unnecessary rebuilds. To force a rebuild regardless, use **Actions > Build container image > Run workflow** (manual dispatch always builds).
 
 ### 11.5 Release Missing After an ISO Run
 
 The release job requires both variant ISO builds to succeed. Open the run, check which matrix leg failed, fix the cause, and use **Re-run failed jobs** — the release job runs automatically once both legs are green. If the run is re-dispatched instead, the same-day tag is replaced (see §8.1 idempotency).
 
-### 11.6 Old Release Checksums Don't Match a Downloaded ISO
+### 11.6 Build Failed: rpmdb Integrity Check
+
+Both `99-cleanup.sh` (inside the build) and the **Verify rpmdb integrity of rechunked image** step run `build_files/shared/verify-rpmdb.sh`, which fails if `rpmdb.sqlite` does not pass SQLite's `quick_check`. This gate exists because `stable.20260825` shipped with a corrupt rpmdb (its Bazzite base was clean), which broke every rpm transaction on it, including the 2026-09-01 ISO build. If the in-build check fails, the corruption came from our build steps. If only the post-rechunk check fails, it came from the rechunker. Do not push or promote the image either way. Re-run first; if it persists, compare against the base image with the same script.
+
+### 11.7 Old Release Checksums Don't Match a Downloaded ISO
 
 Downloads at download.razorfin.org always serve the newest stable build, while release pages are immutable. Verify a download against the checksums of the **newest** release, not an older one.
 
-### 11.7 Users Tracking a Legacy Channel Tag
+### 11.8 Users Tracking a Legacy Channel Tag
 
 Users who installed their system before the channel system was introduced may still be tracking `:latest` from the previous direct-push configuration. This does not require immediate action, as `:latest` continues to receive daily updates. To migrate a system to `stable`:
 
