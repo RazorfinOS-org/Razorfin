@@ -54,12 +54,17 @@ jobs:
         with:
           cosign-release: 'v2.6.1'
 
-      # Stable promotion runs BEFORE daily promotion on Tuesdays so that
-      # stable gets the week-old latest image, not the one just promoted from testing
-      - name: Promote latest to stable (Tuesday only)
+      # Stable gets the image that was on latest SOAK_DAYS ago, not whatever
+      # latest points to right now. Builds only happen when upstream changes,
+      # so "current latest" was often only a day old (e.g. built 2026-09-21,
+      # latest 09-21, stable 09-22). The latest.YYYYMMDD tags record each
+      # promotion, so the newest one dated on or before the cutoff is what
+      # latest pointed to SOAK_DAYS ago.
+      - name: Promote week-old latest to stable (Tuesday only)
         if: github.event_name == 'schedule'
         env:
           COSIGN_PRIVATE_KEY: ${{ secrets.COSIGN_PRIVATE_KEY }}
+          SOAK_DAYS: 7
         run: |
           DAY_OF_WEEK=$(date -u +%u)
           if [[ "${DAY_OF_WEEK}" != "2" ]]; then
@@ -68,27 +73,36 @@ jobs:
           fi
 
           IMAGE="${IMAGE_REGISTRY}/${IMAGE_NAME}${{ matrix.suffix }}"
-          DATE_TAG=$(date +%Y%m%d)
+          DATE_TAG=$(date -u +%Y%m%d)
+          CUTOFF=$(date -u -d "-${SOAK_DAYS} days" +%Y%m%d)
 
-          echo "::notice::GHCR inspect ${IMAGE}:latest"
-          DIGEST=$(skopeo inspect --format '{{.Digest}}' "docker://${IMAGE}:latest" 2>/dev/null || true)
-          if [[ -z "${DIGEST}" ]]; then
-            echo "Source tag latest not found for ${{ matrix.suffix || 'base' }}, skipping"
+          echo "::notice::GHCR list-tags ${IMAGE}"
+          SOURCE_DATE=$(skopeo list-tags "docker://${IMAGE}" \
+            | jq -r '.Tags[]' \
+            | sed -n 's/^latest\.\([0-9]\{8\}\)$/\1/p' \
+            | awk -v cutoff="${CUTOFF}" '$1 <= cutoff' \
+            | sort | tail -n 1)
+          if [[ -z "${SOURCE_DATE}" ]]; then
+            echo "No latest.YYYYMMDD tag on or before ${CUTOFF} for ${{ matrix.suffix || 'base' }}, skipping"
             exit 0
           fi
+          SOURCE="latest.${SOURCE_DATE}"
+
+          echo "::notice::GHCR inspect ${IMAGE}:${SOURCE}"
+          DIGEST=$(skopeo inspect --format '{{.Digest}}' "docker://${IMAGE}:${SOURCE}")
 
           echo "::notice::GHCR inspect ${IMAGE}:stable"
           STABLE_DIGEST=$(skopeo inspect --format '{{.Digest}}' "docker://${IMAGE}:stable" 2>/dev/null || true)
           if [[ "${DIGEST}" == "${STABLE_DIGEST}" ]]; then
-            echo "stable already points to ${DIGEST}; skipping copy/date-tag/sign"
+            echo "stable already points to ${SOURCE} (${DIGEST}); skipping copy/date-tag/sign"
             exit 0
           fi
 
-          echo "Promoting ${IMAGE}:latest → stable (${DIGEST})"
-          echo "::notice::GHCR copy ${IMAGE}:latest -> ${IMAGE}:stable"
-          skopeo copy "docker://${IMAGE}:latest" "docker://${IMAGE}:stable"
-          echo "::notice::GHCR copy ${IMAGE}:latest -> ${IMAGE}:stable.${DATE_TAG}"
-          skopeo copy "docker://${IMAGE}:latest" "docker://${IMAGE}:stable.${DATE_TAG}"
+          echo "Promoting ${IMAGE}:${SOURCE} → stable (${DIGEST}, cutoff ${CUTOFF})"
+          echo "::notice::GHCR copy ${IMAGE}:${SOURCE} -> ${IMAGE}:stable"
+          skopeo copy "docker://${IMAGE}:${SOURCE}" "docker://${IMAGE}:stable"
+          echo "::notice::GHCR copy ${IMAGE}:${SOURCE} -> ${IMAGE}:stable.${DATE_TAG}"
+          skopeo copy "docker://${IMAGE}:${SOURCE}" "docker://${IMAGE}:stable.${DATE_TAG}"
 
           echo "::notice::GHCR cosign sign ${IMAGE}@${DIGEST}"
           cosign sign -y --key env://COSIGN_PRIVATE_KEY "${IMAGE}@${DIGEST}"

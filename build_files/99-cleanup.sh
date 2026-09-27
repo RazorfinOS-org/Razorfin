@@ -30,3 +30,6 @@ dnf5 clean all
 rm -rf /tmp/* /var/tmp/* || true
 
 rm -rf /var/cache/dnf/* || true
+
+# Last step on purpose: nothing after this touches the rpmdb.
+bash /ctx/build/shared/verify-rpmdb.sh

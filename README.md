@@ -9,9 +9,15 @@ Razorfin is a custom [Universal Blue](https://universal-blue.org/) image based o
 | Variant | Base Image | Description |
 |---------|------------|-------------|
 | `razorfin` | `bazzite` | COSMIC desktop (AMD/Intel) |
-| `razorfin-dx` | `bazzite-dx` | COSMIC desktop + developer tools |
+| `razorfin-dx` | `bazzite` | COSMIC desktop + developer tools |
 | `razorfin-nvidia-open` | `bazzite-nvidia-open` | COSMIC desktop + NVIDIA open drivers |
-| `razorfin-dx-nvidia-open` | `bazzite-dx-nvidia` | COSMIC desktop + developer tools + NVIDIA open drivers |
+| `razorfin-dx-nvidia-open` | `bazzite-nvidia-open` | COSMIC desktop + developer tools + NVIDIA open drivers |
+
+The DX variants do not use Bazzite's `bazzite-dx` images. Those are built on
+`bazzite-deck` (the handheld/Game Mode image), so Razorfin layers its own
+developer tools (libvirt/QEMU, Docker CE, eBPF tooling, Sunshine, and more) on
+top of the desktop `bazzite` and `bazzite-nvidia-open` bases instead. See
+[`build_files/04-dx.sh`](build_files/04-dx.sh).
 
 ## Release Channels
 
@@ -21,7 +27,7 @@ Images are built once and promoted between channels by re-tagging, so each chann
 |---------|---------|-------------|
 | `testing` | Every push to `main` | Bleeding edge — latest changes, may have rough edges |
 | `latest` | Daily | Previous day's `testing` build, suitable for general use |
-| `stable` | Weekly (Tuesdays) | Previous week's `latest`, recommended for most users |
+| `stable` | Weekly (Tuesdays) | Whatever `latest` was 7 days earlier, recommended for most users |
 
 Each promotion also creates a date-stamped tag (e.g., `stable.20260208`) that can be used for pinning or rollback.
 
